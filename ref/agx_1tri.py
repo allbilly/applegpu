@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-# https://github.com/AsahiLinux/m1n1/blob/main/proxyclient/experiments/agx_1tri.py
 # SPDX-License-Identifier: MIT
+
+# code is from
+# https://github.com/AsahiLinux/m1n1/blob/main/proxyclient/experiments/agx_1tri.py
 
 import sys, pathlib, time
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[1]))

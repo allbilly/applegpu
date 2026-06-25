@@ -1,0 +1,5 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     iokit_capture.dylib
+relocations:     []
+...
