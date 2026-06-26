@@ -4,7 +4,7 @@
 Workload: red triangle into 8x8 BGRA texture (metal_tri capture).
 Submits decoded IOGPU ioctl sequence: resource alloc → queue setup → trap submit.
 """
-# generated from tri.cap — do not edit OPS by hand (2026-06-26 06:58 UTC)
+# generated from tri.cap — do not edit OPS by hand (2026-06-26 07:30 UTC)
 
 import ctypes
 import ctypes.util
@@ -432,14 +432,6 @@ class CallOp:
         if hasattr(self.struct_in, "pack"):
             return self.struct_in.pack()
         return self.struct_in
-
-
-def _with_raw(obj, blob: bytes):
-    if hasattr(obj, "raw_tail"):
-        obj.raw_tail = blob
-    if hasattr(obj, "raw"):
-        obj.raw = blob
-    return obj
 
 
 @dataclass
@@ -873,7 +865,7 @@ def run_workload(*, verbose: bool = False, submit: bool = True) -> int:
 
 
 def verify(fails: int) -> None:
-    if WORKLOAD == "add":
+    if WORKLOAD in ("add", "mul"):
         print(f"expected={list(EXPECTED)}")
     elif WORKLOAD == "tri":
         print(f"expected_center_BGRA={EXPECTED_CENTER_BGRA}")

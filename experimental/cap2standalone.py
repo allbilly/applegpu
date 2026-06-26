@@ -54,6 +54,16 @@ WORKLOAD_PROFILES: dict[str, dict[str, str]] = {
         "expected_line": "EXPECTED = (11.0, 22.0, 33.0, 44.0)  # metal_add.m",
         "metal_bin": "metal_add",
     },
+    "mul": {
+        "workload": "mul",
+        "title": "AGX compute mul without Metal.",
+        "body": (
+            "Workload: out[i] = a[i] * b[i] for 4 float elements (metal_mul capture).\n"
+            "Submits decoded IOGPU ioctl sequence: resource alloc → queue setup → trap submit."
+        ),
+        "expected_line": "EXPECTED = (10.0, 40.0, 90.0, 160.0)  # metal_mul.m",
+        "metal_bin": "metal_mul",
+    },
     "tri": {
         "workload": "tri",
         "title": "AGX triangle render without Metal.",
@@ -110,12 +120,15 @@ def clear_raw_blob(obj):
 
 
 def emit_packed_struct(obj, blob: bytes, *, field: str) -> str:
-    """Emit struct field; fall back to _with_raw only if pack() != capture."""
+    """Emit struct field from decoded fields; require pack() == capture."""
     clean = clear_raw_blob(obj)
     expr = emit_dataclass_init(clean)
-    if hasattr(clean, "pack") and clean.pack() == blob:
-        return f"    {field}={expr},"
-    return f"    {field}=_with_raw({expr}, {blob!r}),"
+    if hasattr(clean, "pack") and clean.pack() != blob:
+        raise ValueError(
+            f"{type(clean).__name__} pack() mismatch for {field} "
+            f"(extend cap_decode.py)"
+        )
+    return f"    {field}={expr},"
 
 
 def sel_ref(selector: int) -> str:
@@ -367,14 +380,6 @@ class CallOp:
         return self.struct_in
 
 
-def _with_raw(obj, blob: bytes):
-    if hasattr(obj, "raw_tail"):
-        obj.raw_tail = blob
-    if hasattr(obj, "raw"):
-        obj.raw = blob
-    return obj
-
-
 @dataclass
 class TrapOp:
     trap_idx: int
@@ -500,7 +505,7 @@ def run_workload(*, verbose: bool = False, submit: bool = True) -> int:
 
 
 def verify(fails: int) -> None:
-    if WORKLOAD == "add":
+    if WORKLOAD in ("add", "mul"):
         print(f"expected={{list(EXPECTED)}}")
     elif WORKLOAD == "tri":
         print(f"expected_center_BGRA={{EXPECTED_CENTER_BGRA}}")

@@ -2,15 +2,21 @@ CC = clang
 CFLAGS = -g -Wall -Wextra -O2
 FRAMEWORKS = -framework IOKit
 
-.PHONY: all clean capture capture-tri replay replay-py run run-py run-tri standalone standalone-tri run-standalone run-standalone-tri
+.PHONY: all clean capture capture-tri capture-mul replay replay-py run run-py run-tri standalone standalone-tri standalone-mul run-standalone run-standalone-tri run-standalone-mul
 
-all: iokit_capture.dylib metal_add metal_tri replay
+all: iokit_capture.dylib metal_add metal_mul metal_tri replay
 
 standalone-tri: replay-py
 	python3 cap2standalone.py tri.cap -o ../examples/tri.py
 
 run-standalone-tri: standalone-tri
 	python3 ../examples/tri.py
+
+standalone-mul: replay-py
+	python3 cap2standalone.py mul.cap -o ../examples/mul.py
+
+run-standalone-mul: standalone-mul
+	python3 ../examples/mul.py
 
 standalone: replay-py
 	python3 cap2standalone.py add.cap -o ../examples/add.py
@@ -30,6 +36,9 @@ iokit_capture.dylib: iokit_capture.c
 metal_add: metal_add.m
 	$(CC) $(CFLAGS) -framework Metal -framework Foundation -o $@ $<
 
+metal_mul: metal_mul.m
+	$(CC) $(CFLAGS) -framework Metal -framework Foundation -o $@ $<
+
 metal_tri: metal_tri.m
 	$(CC) $(CFLAGS) -framework Metal -framework Foundation -o $@ $<
 
@@ -39,6 +48,10 @@ replay: replay.c
 capture: all
 	CAPTURE_PATH=$(CURDIR)/add.cap DYLD_INSERT_LIBRARIES=$(CURDIR)/iokit_capture.dylib ./metal_add
 	@echo "wrote add.cap ($$(wc -c < add.cap) bytes)"
+
+capture-mul: all
+	CAPTURE_PATH=$(CURDIR)/mul.cap DYLD_INSERT_LIBRARIES=$(CURDIR)/iokit_capture.dylib ./metal_mul
+	@echo "wrote mul.cap ($$(wc -c < mul.cap) bytes)"
 
 capture-tri: all
 	CAPTURE_PATH=$(CURDIR)/tri.cap DYLD_INSERT_LIBRARIES=$(CURDIR)/iokit_capture.dylib ./metal_tri
@@ -51,4 +64,4 @@ run: capture
 	./replay add.cap
 
 clean:
-	rm -f iokit_capture.dylib metal_add metal_tri replay add.cap tri.cap
+	rm -f iokit_capture.dylib metal_add metal_mul metal_tri replay add.cap mul.cap tri.cap
