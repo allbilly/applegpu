@@ -9,14 +9,14 @@ uv run examples/add.py
 
 Tested on:
 
-**M1 MacBook Air**
+M1 MacBook Air
 ```
 ProductName:		macOS
 ProductVersion:		26.5.1
 BuildVersion:		25F80
 ```
 
-**M4** (this host)
+M4 MacBook Air
 ```
 ProductName:		macOS
 ProductVersion:		26.5.1
