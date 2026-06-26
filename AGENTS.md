@@ -3,6 +3,10 @@ ask deepwiki on
 - Atomics-hub/agx-research
 - AsahiLinux/gpu
 
+- intel-lgci-fdo-gitlab-mirror/mesa.mesa
+- AsahiLinux/linux
+- AsahiLinux/docs
+
 - allbilly/ane
 - allbilly/rk3588
 - intel-lgci-fdo-gitlab-mirror/mesa.mesa

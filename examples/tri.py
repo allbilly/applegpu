@@ -1,122 +1,102 @@
 #!/usr/bin/env python3
-"""Standalone AGX add replay — generated, no capture.bin at runtime.
+"""AGX triangle render without Metal.
 
-Source capture: tri.cap
-Generated: 2026-06-25 07:37 UTC
-
-Decoded structure layouts: cap_decode.py
-Replay engine: inline below (fork of replay.py without file loading).
+Workload: red triangle into 8x8 BGRA texture (metal_tri capture).
+Submits decoded IOGPU ioctl sequence: resource alloc → queue setup → trap submit.
 """
-
-from __future__ import annotations
+# generated from tri.cap — do not edit OPS by hand (2026-06-26 06:58 UTC)
 
 import ctypes
 import ctypes.util
 import struct
 import sys
 from dataclasses import dataclass, field
-from typing import Any
 
-# --- structure codecs (from cap_decode.py) ---
-
-
-def _u32(buf: bytes, off: int) -> int:
-    return struct.unpack_from("<I", buf, off)[0]
+WORKLOAD = "tri"
+CLIENT_TYPE = 0x100005
+EXPECTED_CENTER_BGRA = (0, 0, 255, 255)  # center pixel, metal_tri.m
 
 
-def _u64(buf: bytes, off: int) -> int:
-    return struct.unpack_from("<Q", buf, off)[0]
+class sel:
+    NEW_RESOURCE = 0x09
+    QUEUE_CREATE = 0x07
+    NOTIF_QUEUE = 0x10
+    QUEUE_FINALIZE = 0x1C
+    SHMEM = 0x0E
 
 
-def _cstr(buf: bytes, off: int, maxlen: int) -> str:
-    end = buf.find(b"\x00", off, off + maxlen)
-    if end < 0:
-        end = off + maxlen
-    return buf[off:end].decode("utf-8", errors="replace")
+# ── IOGPU input structs (selector payloads) ──────────────────────
 
 @dataclass
-class NewResourceIn:
+class ResourceCreateIn:
     """Selector 0x09 s_new_resource input (104 bytes)."""
 
-    parent_qword: int = 0
+    parent_handle: int = 0
     type_version: int = 0x0001_0001
-    field_0c: int = 1
-    flags: int = 0x0100_0101
-    size: int = 0
-    parent_va_38: int = 0
-    parent_va_40: int = 0
-    field_48: int = 0
-    field_5c: int = 0
+    resource_class: int = 1
+    create_flags: int = 0x0100_0101
+    alloc_size: int = 0
+    suballoc_flag: int = 0
+    parent_gpu_va: int = 0
+    parent_gpu_va2: int = 0
+    heap_flags: int = 0
+    heap_lane: int = 0
+    stride_or_count: int = 0
+    create_info: int = 0
+    backing_ptr: int = 0
     raw_tail: bytes = field(default_factory=bytes)
-
-    @classmethod
-    def from_bytes(cls, data: bytes) -> NewResourceIn:
-        if len(data) != 104:
-            raise ValueError(f"NewResourceIn expects 104 bytes, got {len(data)}")
-        return cls(
-            parent_qword=_u64(data, 0),
-            type_version=_u32(data, 8),
-            field_0c=_u32(data, 12),
-            flags=_u32(data, 16),
-            size=_u32(data, 20),
-            parent_va_38=_u64(data, 0x38),
-            parent_va_40=_u64(data, 0x40),
-            field_48=_u32(data, 0x48),
-            field_5c=_u32(data, 0x5C),
-            raw_tail=data,
-        )
 
     def pack(self) -> bytes:
         if self.raw_tail:
             return bytes(self.raw_tail)
         buf = bytearray(104)
-        struct.pack_into("<Q", buf, 0, self.parent_qword)
+        struct.pack_into("<Q", buf, 0, self.parent_handle)
         struct.pack_into("<I", buf, 8, self.type_version)
-        struct.pack_into("<I", buf, 12, self.field_0c)
-        struct.pack_into("<I", buf, 16, self.flags)
-        struct.pack_into("<I", buf, 20, self.size)
-        struct.pack_into("<Q", buf, 0x38, self.parent_va_38)
-        struct.pack_into("<Q", buf, 0x40, self.parent_va_40)
-        struct.pack_into("<I", buf, 0x48, self.field_48)
-        struct.pack_into("<I", buf, 0x5C, self.field_5c)
+        struct.pack_into("<I", buf, 12, self.resource_class)
+        struct.pack_into("<I", buf, 16, self.create_flags)
+        struct.pack_into("<I", buf, 20, self.alloc_size)
+        struct.pack_into("<I", buf, 0x30, self.suballoc_flag)
+        struct.pack_into("<Q", buf, 0x38, self.parent_gpu_va)
+        struct.pack_into("<Q", buf, 0x40, self.parent_gpu_va2)
+        struct.pack_into("<I", buf, 0x48, self.heap_flags)
+        struct.pack_into("<I", buf, 0x50, self.heap_lane)
+        struct.pack_into("<I", buf, 0x58, self.stride_or_count)
+        struct.pack_into("<I", buf, 0x5C, self.create_info)
+        struct.pack_into("<Q", buf, 0x60, self.backing_ptr)
         return bytes(buf)
 
 
 @dataclass
-class NewResourceOut:
+class ResourceCreateOut:
     """Selector 0x09 output (88 bytes) — captured reference for addr-map learning."""
 
     rid: int = 0
-    gpu_va_08: int = 0
-    gpu_va_10: int = 0
-    field_18: int = 0
-    field_1c: int = 0
-    field_20: int = 0
-    field_28: int = 0
-    field_30: int = 0
-    field_38: int = 0
-    field_40: int = 0
-    field_48: int = 0
+    rid_tag: int = 0
+    gpu_va: int = 0
+    gpu_va2: int = 0
+    slot_index: int = 0
+    heap_size: int = 0
+    cookie: int = 0
+    cookie_flags: int = 0
+    type_tag: int = 0
+    out_heap_flags: int = 0
     raw: bytes = field(default_factory=bytes)
 
-    @classmethod
-    def from_bytes(cls, data: bytes) -> NewResourceOut:
-        if len(data) != 88:
-            raise ValueError(f"NewResourceOut expects 88 bytes, got {len(data)}")
-        return cls(
-            rid=_u32(data, 0),
-            gpu_va_08=_u64(data, 8),
-            gpu_va_10=_u64(data, 16),
-            field_18=_u32(data, 0x18),
-            field_1c=_u32(data, 0x1C),
-            field_20=_u32(data, 0x20),
-            field_28=_u64(data, 0x28),
-            field_30=_u32(data, 0x30),
-            field_38=_u32(data, 0x38),
-            field_40=_u32(data, 0x40),
-            field_48=_u32(data, 0x48),
-            raw=data,
-        )
+    def pack(self) -> bytes:
+        if self.raw:
+            return bytes(self.raw)
+        buf = bytearray(88)
+        struct.pack_into("<I", buf, 0, self.rid)
+        struct.pack_into("<I", buf, 4, self.rid_tag)
+        struct.pack_into("<Q", buf, 8, self.gpu_va)
+        struct.pack_into("<Q", buf, 16, self.gpu_va2)
+        struct.pack_into("<I", buf, 0x24, self.slot_index)
+        struct.pack_into("<Q", buf, 0x28, self.heap_size)
+        struct.pack_into("<I", buf, 0x30, self.cookie)
+        struct.pack_into("<I", buf, 0x34, self.cookie_flags)
+        struct.pack_into("<I", buf, 0x38, self.type_tag)
+        struct.pack_into("<I", buf, 0x50, self.out_heap_flags)
+        return bytes(buf)
 
 
 @dataclass
@@ -125,23 +105,10 @@ class QueueCreateIn:
 
     exe_path: str = ""
     label: str = ""
-    field_400: int = 2
-    field_408: int = 0xFFFFFFFF
-    field_40c: int = 1
+    queue_flags: int = 2
+    unk_mask: int = 0xFFFFFFFF
+    enable: int = 1
     raw: bytes = field(default_factory=bytes)
-
-    @classmethod
-    def from_bytes(cls, data: bytes) -> QueueCreateIn:
-        if len(data) != 0x410:
-            raise ValueError(f"QueueCreateIn expects 1040 bytes, got {len(data)}")
-        return cls(
-            exe_path=_cstr(data, 0x000, 0x3C7),
-            label=_cstr(data, 0x3C8, 0x37),
-            field_400=_u64(data, 0x400),
-            field_408=_u32(data, 0x408),
-            field_40c=_u32(data, 0x40C),
-            raw=data,
-        )
 
     def pack(self) -> bytes:
         if self.raw:
@@ -151,94 +118,94 @@ class QueueCreateIn:
         lb = self.label.encode("utf-8")[:0x37]
         buf[0x000 : 0x000 + len(ep)] = ep
         buf[0x3C8 : 0x3C8 + len(lb)] = lb
-        struct.pack_into("<Q", buf, 0x400, self.field_400)
-        struct.pack_into("<I", buf, 0x408, self.field_408)
-        struct.pack_into("<I", buf, 0x40C, self.field_40c)
+        struct.pack_into("<Q", buf, 0x400, self.queue_flags)
+        struct.pack_into("<I", buf, 0x408, self.unk_mask)
+        struct.pack_into("<I", buf, 0x40C, self.enable)
         return bytes(buf)
 
 
 @dataclass
 class QueueCreateOut:
     queue_id: int = 0
-    extra: int = 0
+    cookie: int = 0
 
-    @classmethod
-    def from_bytes(cls, data: bytes) -> QueueCreateOut:
-        return cls(_u64(data, 0), _u64(data, 8))
+    def pack(self) -> bytes:
+        buf = bytearray(16)
+        struct.pack_into("<I", buf, 0, self.queue_id)
+        struct.pack_into("<Q", buf, 8, self.cookie)
+        return bytes(buf)
 
 
 @dataclass
 class NotifQueueIn:
-  size: int = 0x100
-  flags: int = 0x28
+    ring_size: int = 0x100
+    ring_flags: int = 0x28
 
-  def as_scalars(self) -> list[int]:
-      return [self.size, self.flags]
+    def as_scalars(self) -> list[int]:
+        return [self.ring_size, self.ring_flags]
 
 
 @dataclass
 class QueueFinalizeIn:
-    a: int = 1
-    b: int = 1
+    arg0: int = 1
+    arg1: int = 1
 
     def as_scalars(self) -> list[int]:
-      return [self.a, self.b]
+        return [self.arg0, self.arg1]
 
 
 @dataclass
 class ShmemIn:
     size: int = 0x4000
-    flags: int = 0
+    map_flags: int = 0
 
     def as_scalars(self) -> list[int]:
-        return [self.size, self.flags]
+        return [self.size, self.map_flags]
 
 
 @dataclass
 class ShmemOut:
-    vaddr: int = 0
+    gpu_va: int = 0
     size: int = 0
-    handle: int = 0
+    shmem_id: int = 0
 
-    @classmethod
-    def from_bytes(cls, data: bytes) -> ShmemOut:
-        return cls(_u64(data, 0), _u32(data, 8), _u32(data, 12))
+    def pack(self) -> bytes:
+        buf = bytearray(16)
+        struct.pack_into("<Q", buf, 0, self.gpu_va)
+        struct.pack_into("<I", buf, 8, self.size)
+        struct.pack_into("<I", buf, 12, self.shmem_id)
+        return bytes(buf)
 
 
 @dataclass
-class TrapSubmitSnap:
+class Trap0SubmitSnap:
     """Trap0 fast-path submit buffer (64 bytes)."""
 
-    field_00: int = 0
-    field_04: int = 0
-    field_08: int = 0
-    field_10: int = 0
-    field_18: int = 0
+    buf_count: int = 0
+    submit_flags: int = 0
+    reserved: int = 0
+    cmdbuf_gpu_va: int = 0
+    cmdbuf_aux_va: int = 0
     raw: bytes = field(default_factory=bytes)
-
-    @classmethod
-    def from_bytes(cls, data: bytes) -> TrapSubmitSnap:
-        return cls(
-            field_00=_u32(data, 0),
-            field_04=_u32(data, 4),
-            field_08=_u64(data, 8),
-            field_10=_u64(data, 0x10),
-            field_18=_u64(data, 0x18),
-            raw=data,
-        )
 
     def pack(self) -> bytes:
         if self.raw:
             return bytes(self.raw)
         buf = bytearray(64)
-        struct.pack_into("<I", buf, 0, self.field_00)
-        struct.pack_into("<I", buf, 4, self.field_04)
-        struct.pack_into("<Q", buf, 8, self.field_08)
-        struct.pack_into("<Q", buf, 0x10, self.field_10)
-        struct.pack_into("<Q", buf, 0x18, self.field_18)
+        struct.pack_into("<I", buf, 0, self.buf_count)
+        struct.pack_into("<I", buf, 4, self.submit_flags)
+        struct.pack_into("<Q", buf, 8, self.reserved)
+        struct.pack_into("<Q", buf, 0x10, self.cmdbuf_gpu_va)
+        struct.pack_into("<Q", buf, 0x18, self.cmdbuf_aux_va)
         return bytes(buf)
 
-# --- minimal IOKit backend ---
+
+# Backward-compatible aliases (decode tooling).
+NewResourceIn = ResourceCreateIn
+NewResourceOut = ResourceCreateOut
+TrapSubmitSnap = Trap0SubmitSnap
+
+# ── IOKit backend ────────────────────────────────────────────────
 
 KERN_SUCCESS = 0
 
@@ -389,19 +356,75 @@ def alloc_aligned(size: int, align: int = 16) -> tuple[ctypes.c_void_p, ctypes.C
         raise MemoryError("posix_memalign failed")
     return ptr, libc
 
-# --- replay ops (decoded from capture) ---
+
+def open_agx(iokit: IOKit) -> tuple[int, int]:
+    """Open AGXAccelerator user client. Returns (service, conn)."""
+    svc = iokit.find_agx_service()
+    if not svc:
+        raise RuntimeError("no AGX accelerator")
+    kr, conn = iokit.service_open(svc, CLIENT_TYPE)
+    if kr != 0:
+        raise RuntimeError(f"IOServiceOpen failed rc=0x{kr:x}")
+    return svc, conn
+
+
+def agx_call(
+    iokit: IOKit,
+    conn: int,
+    selector: int,
+    scalars: list[int],
+    struct_in: bytes | None,
+    struct_out_sz: int,
+) -> tuple[int, bytes, int]:
+    """One IOConnectCallMethod — ane allocate_buffer ioctl equivalent."""
+    rc, _so, live_out, out_sz = iokit.connect_call(
+        conn, selector, scalars, struct_in, 0, struct_out_sz,
+    )
+    return rc, live_out, out_sz
+
+
+def submit_task(
+    iokit: IOKit, conn: int, trap_idx: int, p1: int, p2: int, snap: bytes, use_p4: bool,
+) -> int:
+    """Trap submit — ane submit_task ioctl equivalent."""
+    p3 = p4 = 0
+    ptr = None
+    libc = None
+    if snap:
+        alloc_sz = len(snap) + 0x100
+        ptr, libc = alloc_aligned(alloc_sz)
+        dst = (ctypes.c_uint8 * alloc_sz).from_address(ptr.value)
+        ctypes.memmove(dst, snap, len(snap))
+        p3 = ptr.value
+        p4 = ptr.value + 0x84 if use_p4 else 0
+    try:
+        return iokit.connect_trap(conn, trap_idx, p1, p2, p3, p4)
+    finally:
+        if ptr is not None and libc is not None:
+            libc.free(ptr)
+
+
+def close_agx(iokit: IOKit, svc: int, conn: int) -> None:
+    if conn:
+        iokit.lib.IOServiceClose(conn)
+    if svc:
+        iokit.lib.IOObjectRelease(svc)
+
+
+# ── address remap ────────────────────────────────────────────────
 
 @dataclass
 class OpenOp:
     client_type: int
 
+
 @dataclass
 class CallOp:
     selector: int
     scalars: list[int]
-    struct_in: Any
+    struct_in: object
     struct_out_sz: int
-    cap_out: Any = None
+    cap_out: object = None
 
     def pack_struct_in(self) -> bytes | None:
         if self.struct_in is None:
@@ -418,13 +441,15 @@ def _with_raw(obj, blob: bytes):
         obj.raw = blob
     return obj
 
+
 @dataclass
 class TrapOp:
     trap_idx: int
     p1: int
     p2: int
     use_p4: bool
-    snap: TrapSubmitSnap
+    snap: Trap0SubmitSnap
+
 
 class AddrMap:
     def __init__(self) -> None:
@@ -435,13 +460,11 @@ class AddrMap:
             return
         self._maps[old] = new
 
-    def remap(self, value: int) -> int:
-        return self._maps.get(value, value)
-
     def patch_u64_buf(self, buf: bytearray) -> None:
         for off in range(0, len(buf) - 7, 8):
             old, = struct.unpack_from("<Q", buf, off)
-            struct.pack_into("<Q", buf, off, self.remap(old))
+            new = self._maps.get(old, old)
+            struct.pack_into("<Q", buf, off, new)
 
     def learn_resource_maps(self, cap: bytes, live: bytes) -> None:
         if len(cap) < 24 or len(live) < 24:
@@ -452,379 +475,429 @@ class AddrMap:
     def __len__(self) -> int:
         return len(self._maps)
 
+
+# ── IOGPU submit sequence (BTSP equivalent) ──────────────────────
+
 OPS = [
-    OpenOp(client_type=0x100005,  # op 0
+# ── open AGX user client ────────────────────────────────────────
+
+    OpenOp(client_type=CLIENT_TYPE,  # op 0
     ),
-    CallOp(  # op 1: sel=0x09
-        selector=0x09,
+# ── resource setup (sel NEW_RESOURCE) ───────────────────────────
+
+    CallOp(  # op 1: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x10001, field_0c=1, flags=0x1000101, size=33840, parent_va_38=0, parent_va_40=0, field_48=0x10000, field_5c=24), b'\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010\x84\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x008\x18\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x10001, create_flags=0x1000101, alloc_size=33840, heap_flags=0x10000, stride_or_count=0x38000000, create_info=24),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0, gpu_va_08=0x103004000, gpu_va_10=0x102ff00c0, field_18=0, field_1c=0, field_20=0, field_28=0x10000, field_30=0xd301dea5, field_38=0x16c552, field_40=0, field_48=0, raw=b'\x00\x00\x00\x00\x00\x00\x00\x00\x00@\x00\x03\x01\x00\x00\x00\xc0\x00\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\xa5\xde\x01\xd3\x01\x00\x00\x00R\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(gpu_va=0x103004000, gpu_va2=0x102ff00c0, slot_index=1, heap_size=0x10000, cookie=0xd301dea5, type_tag=0x16c552, out_heap_flags=0x10000),
     ),
-    CallOp(  # op 2: sel=0x09
-        selector=0x09,
+    CallOp(  # op 2: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x10001, field_0c=1, flags=0x1000101, size=1072, parent_va_38=0, parent_va_40=0, field_48=0x10000, field_5c=24), b'\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\x18\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x10001, create_flags=0x1000101, alloc_size=1072, heap_flags=0x10000, stride_or_count=0x8000000, create_info=24),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0, gpu_va_08=0x103038000, gpu_va_10=0x102ff0180, field_18=0, field_1c=0, field_20=0, field_28=0x10000, field_30=0xd301dea6, field_38=0x16c553, field_40=0, field_48=0, raw=b'\x00\x00\x00\x00\x15\x00\x00\x00\x00\x80\x03\x03\x01\x00\x00\x00\x80\x01\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\xa6\xde\x01\xd3\x01\x00\x00\x00S\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid_tag=21, gpu_va=0x103038000, gpu_va2=0x102ff0180, slot_index=2, heap_size=0x10000, cookie=0xd301dea6, type_tag=0x16c553, out_heap_flags=0x10000),
     ),
-    CallOp(  # op 3: sel=0x09
-        selector=0x09,
+    CallOp(  # op 3: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x10001, field_0c=1, flags=0x1000101, size=1136, parent_va_38=0, parent_va_40=0, field_48=0x20000, field_5c=0), b'\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01\x00\x01\x00\x00\x00\x01\x01\x00\x01p\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xe0K\xce\r\x01\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x10001, create_flags=0x1000101, alloc_size=1136, suballoc_flag=1, heap_flags=0x20000, backing_ptr=0x10dce4be0),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x18000, gpu_va_08=0x103048000, gpu_va_10=0x102ff0240, field_18=0, field_1c=0, field_20=0, field_28=0x20000, field_30=0xd301dea7, field_38=0x16c554, field_40=0, field_48=0, raw=b'\x00\x80\x01\x00\x15\x00\x00\x00\x00\x80\x04\x03\x01\x00\x00\x00@\x02\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\xa7\xde\x01\xd3\x01\x00\x00\x00T\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x18000, rid_tag=21, gpu_va=0x103048000, gpu_va2=0x102ff0240, slot_index=3, heap_size=0x20000, cookie=0xd301dea7, type_tag=0x16c554, out_heap_flags=0x20000),
     ),
-    CallOp(  # op 4: sel=0x09
-        selector=0x09,
+    CallOp(  # op 4: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=128, type_version=0x10001, field_0c=1, flags=0x1000101, size=3120, parent_va_38=0x103048000, parent_va_40=0x103048000, field_48=0x20000, field_5c=24), b'\x80\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010\x0c\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x04\x03\x01\x00\x00\x00\x00\x80\x04\x03\x01\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x18\x00\x00\x00\xa0T\xce\r\x01\x00\x00\x00'),
+        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x103048000, parent_gpu_va2=0x103048000, heap_flags=0x20000, heap_lane=3, create_info=24, backing_ptr=0x10dce54a0),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x18000, gpu_va_08=0, gpu_va_10=0x102ff0300, field_18=0, field_1c=0, field_20=0, field_28=0x20000, field_30=0xd301dea8, field_38=0x16c554, field_40=0, field_48=0, raw=b'\x00\x80\x01\x00\x15\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x03\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\xa8\xde\x01\xd3\x01\x00\x00\x00T\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x18000, rid_tag=21, gpu_va2=0x102ff0300, slot_index=4, heap_size=0x20000, cookie=0xd301dea8, type_tag=0x16c554, out_heap_flags=0x20000),
     ),
-    CallOp(  # op 5: sel=0x09
-        selector=0x09,
+    CallOp(  # op 5: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=128, type_version=0x10001, field_0c=1, flags=0x1000101, size=3120, parent_va_38=0x103048200, parent_va_40=0x103048000, field_48=0x20000, field_5c=24), b'\x80\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010\x0c\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x82\x04\x03\x01\x00\x00\x00\x00\x80\x04\x03\x01\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x18\x00\x00\x00\xa0T\xce\r\x01\x00\x00\x00'),
+        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x103048200, parent_gpu_va2=0x103048000, heap_flags=0x20000, heap_lane=3, create_info=24, backing_ptr=0x10dce54a0),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x18200, gpu_va_08=0, gpu_va_10=0x102ff03c0, field_18=0, field_1c=0, field_20=0, field_28=0x20000, field_30=0xd301dea9, field_38=0x16c554, field_40=0, field_48=0, raw=b'\x00\x82\x01\x00\x15\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xc0\x03\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x05\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\xa9\xde\x01\xd3\x01\x00\x00\x00T\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xfe\x01\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x18200, rid_tag=21, gpu_va2=0x102ff03c0, slot_index=5, heap_size=0x20000, cookie=0xd301dea9, type_tag=0x16c554, out_heap_flags=0x1fe00),
     ),
-    CallOp(  # op 6: sel=0x09
-        selector=0x09,
+    CallOp(  # op 6: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=128, type_version=0x10001, field_0c=1, flags=0x1000101, size=3120, parent_va_38=0x103048400, parent_va_40=0x103048000, field_48=0x20000, field_5c=24), b'\x80\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010\x0c\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x84\x04\x03\x01\x00\x00\x00\x00\x80\x04\x03\x01\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x18\x00\x00\x00\xa0T\xce\r\x01\x00\x00\x00'),
+        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x103048400, parent_gpu_va2=0x103048000, heap_flags=0x20000, heap_lane=3, create_info=24, backing_ptr=0x10dce54a0),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x18400, gpu_va_08=0, gpu_va_10=0x102ff0480, field_18=0, field_1c=0, field_20=0, field_28=0x20000, field_30=0xd301deaa, field_38=0x16c554, field_40=0, field_48=0, raw=b'\x00\x84\x01\x00\x15\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x04\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x06\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\xaa\xde\x01\xd3\x01\x00\x00\x00T\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xfc\x01\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x18400, rid_tag=21, gpu_va2=0x102ff0480, slot_index=6, heap_size=0x20000, cookie=0xd301deaa, type_tag=0x16c554, out_heap_flags=0x1fc00),
     ),
-    CallOp(  # op 7: sel=0x09
-        selector=0x09,
+    CallOp(  # op 7: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=128, type_version=0x10001, field_0c=1, flags=0x1000101, size=3120, parent_va_38=0x103048500, parent_va_40=0x103048000, field_48=0x20000, field_5c=24), b'\x80\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010\x0c\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x85\x04\x03\x01\x00\x00\x00\x00\x80\x04\x03\x01\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x18\x00\x00\x00\x10\xa2\xc7.\x0b\x00\x00\x00'),
+        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x103048500, parent_gpu_va2=0x103048000, heap_flags=0x20000, heap_lane=3, create_info=24, backing_ptr=0xb2ec7a210),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x18500, gpu_va_08=0, gpu_va_10=0x102ff0540, field_18=0, field_1c=0, field_20=0, field_28=0x20000, field_30=0xd301deab, field_38=0x16c554, field_40=0, field_48=0, raw=b'\x00\x85\x01\x00\x15\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00@\x05\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x07\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\xab\xde\x01\xd3\x01\x00\x00\x00T\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xfb\x01\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x18500, rid_tag=21, gpu_va2=0x102ff0540, slot_index=7, heap_size=0x20000, cookie=0xd301deab, type_tag=0x16c554, out_heap_flags=0x1fb00),
     ),
-    CallOp(  # op 8: sel=0x09
-        selector=0x09,
+    CallOp(  # op 8: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=128, type_version=0x10001, field_0c=1, flags=0x1000101, size=3120, parent_va_38=0x10304a500, parent_va_40=0x103048000, field_48=0x20000, field_5c=24), b'\x80\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010\x0c\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xa5\x04\x03\x01\x00\x00\x00\x00\x80\x04\x03\x01\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x18\x00\x00\x00\x98\xa2\xc7.\x0b\x00\x00\x00'),
+        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x10304a500, parent_gpu_va2=0x103048000, heap_flags=0x20000, heap_lane=3, create_info=24, backing_ptr=0xb2ec7a298),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x1a500, gpu_va_08=0, gpu_va_10=0x102ff0600, field_18=0, field_1c=0, field_20=0, field_28=0x20000, field_30=0xd301deac, field_38=0x16c554, field_40=0, field_48=0, raw=b'\x00\xa5\x01\x00\x15\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x06\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\xac\xde\x01\xd3\x01\x00\x00\x00T\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xdb\x01\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x1a500, rid_tag=21, gpu_va2=0x102ff0600, slot_index=8, heap_size=0x20000, cookie=0xd301deac, type_tag=0x16c554, out_heap_flags=0x1db00),
     ),
-    CallOp(  # op 9: sel=0x09
-        selector=0x09,
+    CallOp(  # op 9: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=128, type_version=0x10001, field_0c=1, flags=0x1000101, size=3120, parent_va_38=0x10304a600, parent_va_40=0x103048000, field_48=0x20000, field_5c=24), b'\x80\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010\x0c\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xa6\x04\x03\x01\x00\x00\x00\x00\x80\x04\x03\x01\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x18\x00\x00\x00\xb8\xa5\xc7.\x0b\x00\x00\x00'),
+        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x10304a600, parent_gpu_va2=0x103048000, heap_flags=0x20000, heap_lane=3, create_info=24, backing_ptr=0xb2ec7a5b8),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x1a600, gpu_va_08=0, gpu_va_10=0x102ff06c0, field_18=0, field_1c=0, field_20=0, field_28=0x20000, field_30=0xd301dead, field_38=0x16c554, field_40=0, field_48=0, raw=b'\x00\xa6\x01\x00\x15\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xc0\x06\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\t\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\xad\xde\x01\xd3\x01\x00\x00\x00T\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xda\x01\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x1a600, rid_tag=21, gpu_va2=0x102ff06c0, slot_index=9, heap_size=0x20000, cookie=0xd301dead, type_tag=0x16c554, out_heap_flags=0x1da00),
     ),
-    CallOp(  # op 10: sel=0x09
-        selector=0x09,
+    CallOp(  # op 10: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=128, type_version=0x10001, field_0c=1, flags=0x1000101, size=3120, parent_va_38=0x10304b600, parent_va_40=0x103048000, field_48=0x20000, field_5c=24), b'\x80\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010\x0c\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xb6\x04\x03\x01\x00\x00\x00\x00\x80\x04\x03\x01\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x18\x00\x00\x00\xd8\xa8\xc7.\x0b\x00\x00\x00'),
+        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x10304b600, parent_gpu_va2=0x103048000, heap_flags=0x20000, heap_lane=3, create_info=24, backing_ptr=0xb2ec7a8d8),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x1b600, gpu_va_08=0, gpu_va_10=0x102ff0780, field_18=0, field_1c=0, field_20=0, field_28=0x20000, field_30=0xd301deae, field_38=0x16c554, field_40=0, field_48=0, raw=b'\x00\xb6\x01\x00\x15\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x07\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\n\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\xae\xde\x01\xd3\x01\x00\x00\x00T\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xca\x01\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x1b600, rid_tag=21, gpu_va2=0x102ff0780, slot_index=10, heap_size=0x20000, cookie=0xd301deae, type_tag=0x16c554, out_heap_flags=0x1ca00),
     ),
-    CallOp(  # op 11: sel=0x09
-        selector=0x09,
+    CallOp(  # op 11: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=128, type_version=0x10001, field_0c=1, flags=0x1000101, size=3120, parent_va_38=0x10304b700, parent_va_40=0x103048000, field_48=0x20000, field_5c=24), b'\x80\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010\x0c\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xb7\x04\x03\x01\x00\x00\x00\x00\x80\x04\x03\x01\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x18\x00\x00\x00\xe0\xab\xc7.\x0b\x00\x00\x00'),
+        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x10304b700, parent_gpu_va2=0x103048000, heap_flags=0x20000, heap_lane=3, create_info=24, backing_ptr=0xb2ec7abe0),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x1b700, gpu_va_08=0, gpu_va_10=0x102ff0840, field_18=0, field_1c=0, field_20=0, field_28=0x20000, field_30=0xd301deaf, field_38=0x16c554, field_40=0, field_48=0, raw=b'\x00\xb7\x01\x00\x15\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00@\x08\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0b\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\xaf\xde\x01\xd3\x01\x00\x00\x00T\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xc9\x01\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x1b700, rid_tag=21, gpu_va2=0x102ff0840, slot_index=11, heap_size=0x20000, cookie=0xd301deaf, type_tag=0x16c554, out_heap_flags=0x1c900),
     ),
-    CallOp(  # op 12: sel=0x09
-        selector=0x09,
+    CallOp(  # op 12: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=128, type_version=0x10001, field_0c=1, flags=0x1000101, size=3120, parent_va_38=0x10304b800, parent_va_40=0x103048000, field_48=0x20000, field_5c=24), b'\x80\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010\x0c\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xb8\x04\x03\x01\x00\x00\x00\x00\x80\x04\x03\x01\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x18\x00\x00\x00\xe8\xae\xc7.\x0b\x00\x00\x00'),
+        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x10304b800, parent_gpu_va2=0x103048000, heap_flags=0x20000, heap_lane=3, create_info=24, backing_ptr=0xb2ec7aee8),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x1b800, gpu_va_08=0, gpu_va_10=0x102ff0900, field_18=0, field_1c=0, field_20=0, field_28=0x20000, field_30=0xd301deb0, field_38=0x16c554, field_40=0, field_48=0, raw=b'\x00\xb8\x01\x00\x15\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\t\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0c\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\xb0\xde\x01\xd3\x01\x00\x00\x00T\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xc8\x01\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x1b800, rid_tag=21, gpu_va2=0x102ff0900, slot_index=12, heap_size=0x20000, cookie=0xd301deb0, type_tag=0x16c554, out_heap_flags=0x1c800),
     ),
-    CallOp(  # op 13: sel=0x09
-        selector=0x09,
+    CallOp(  # op 13: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=128, type_version=0x10001, field_0c=1, flags=0x1000101, size=3120, parent_va_38=0x10304b900, parent_va_40=0x103048000, field_48=0x20000, field_5c=24), b'\x80\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010\x0c\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xb9\x04\x03\x01\x00\x00\x00\x00\x80\x04\x03\x01\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x18\x00\x00\x00\xe0K\xce\r\x01\x00\x00\x00'),
+        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x10304b900, parent_gpu_va2=0x103048000, heap_flags=0x20000, heap_lane=3, create_info=24, backing_ptr=0x10dce4be0),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x1b900, gpu_va_08=0, gpu_va_10=0x102ff09c0, field_18=0, field_1c=0, field_20=0, field_28=0x20000, field_30=0xd301deb1, field_38=0x16c554, field_40=0, field_48=0, raw=b'\x00\xb9\x01\x00\x15\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xc0\t\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\r\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\xb1\xde\x01\xd3\x01\x00\x00\x00T\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xc7\x01\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x1b900, rid_tag=21, gpu_va2=0x102ff09c0, slot_index=13, heap_size=0x20000, cookie=0xd301deb1, type_tag=0x16c554, out_heap_flags=0x1c700),
     ),
-    CallOp(  # op 14: sel=0x09
-        selector=0x09,
+    CallOp(  # op 14: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x10001, field_0c=1, flags=0x1000101, size=1136, parent_va_38=0, parent_va_40=0, field_48=0x20000, field_5c=0), b'\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01\x00\x01\x00\x00\x00\x01\x01\x00\x01p\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xe0K\xce\r\x01\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x10001, create_flags=0x1000101, alloc_size=1136, suballoc_flag=1, heap_flags=0x20000, backing_ptr=0x10dce4be0),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x40000, gpu_va_08=0x1031c0000, gpu_va_10=0x102ff0a80, field_18=0, field_1c=0, field_20=0, field_28=0x20000, field_30=0xd301deb2, field_38=0x16c555, field_40=0, field_48=0, raw=b'\x00\x00\x04\x00\x15\x00\x00\x00\x00\x00\x1c\x03\x01\x00\x00\x00\x80\n\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0e\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\xb2\xde\x01\xd3\x01\x00\x00\x00U\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x40000, rid_tag=21, gpu_va=0x1031c0000, gpu_va2=0x102ff0a80, slot_index=14, heap_size=0x20000, cookie=0xd301deb2, type_tag=0x16c555, out_heap_flags=0x20000),
     ),
-    CallOp(  # op 15: sel=0x09
-        selector=0x09,
+    CallOp(  # op 15: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=128, type_version=0x10001, field_0c=1, flags=0x1000101, size=3120, parent_va_38=0x1031c0000, parent_va_40=0x1031c0000, field_48=0x20000, field_5c=24), b'\x80\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010\x0c\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x1c\x03\x01\x00\x00\x00\x00\x00\x1c\x03\x01\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x0e\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x18\x00\x00\x00\xe0K\xce\r\x01\x00\x00\x00'),
+        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x1031c0000, parent_gpu_va2=0x1031c0000, heap_flags=0x20000, heap_lane=14, create_info=24, backing_ptr=0x10dce4be0),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x40000, gpu_va_08=0, gpu_va_10=0x102ff0b40, field_18=0, field_1c=0, field_20=0, field_28=0x20000, field_30=0xd301deb3, field_38=0x16c555, field_40=0, field_48=0, raw=b'\x00\x00\x04\x00\x15\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00@\x0b\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0f\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\xb3\xde\x01\xd3\x01\x00\x00\x00U\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x40000, rid_tag=21, gpu_va2=0x102ff0b40, slot_index=15, heap_size=0x20000, cookie=0xd301deb3, type_tag=0x16c555, out_heap_flags=0x20000),
     ),
-    CallOp(  # op 16: sel=0x09
-        selector=0x09,
+    CallOp(  # op 16: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=128, type_version=0x80008, field_0c=1, flags=0x4000101, size=3120, parent_va_38=0x10304d900, parent_va_40=0x103048000, field_48=0x20000, field_5c=1), b'\x80\x00\x00\x00\x00\x00\x00\x00\x08\x00\x08\x00\x01\x00\x00\x00\x01\x01\x00\x040\x0c\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xd9\x04\x03\x01\x00\x00\x00\x00\x80\x04\x03\x01\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x00\x8f\x88\x80\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x80008, create_flags=0x4000101, alloc_size=3120, parent_gpu_va=0x10304d900, parent_gpu_va2=0x103048000, heap_flags=0x20000, heap_lane=3, stride_or_count=0x80888f00, create_info=1),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x1d900, gpu_va_08=0, gpu_va_10=0x102ff0c00, field_18=0, field_1c=0, field_20=0, field_28=0x20000, field_30=0xd301deb4, field_38=0x16c554, field_40=0, field_48=0, raw=b'\x00\xd9\x01\x00\x15\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0c\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\xb4\xde\x01\xd3\x01\x00\x00\x00T\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xa7\x01\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x1d900, rid_tag=21, gpu_va2=0x102ff0c00, slot_index=16, heap_size=0x20000, cookie=0xd301deb4, type_tag=0x16c554, out_heap_flags=0x1a700),
     ),
-    CallOp(  # op 17: sel=0x09
-        selector=0x09,
+    CallOp(  # op 17: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=128, type_version=0x10001, field_0c=1, flags=0x1000101, size=3120, parent_va_38=0x10304da00, parent_va_40=0x103048000, field_48=0x20000, field_5c=0), b'\x80\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010\x0c\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xda\x04\x03\x01\x00\x00\x00\x00\x80\x04\x03\x01\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xe0K\xce\r\x01\x00\x00\x00'),
+        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x10304da00, parent_gpu_va2=0x103048000, heap_flags=0x20000, heap_lane=3, backing_ptr=0x10dce4be0),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x1da00, gpu_va_08=0, gpu_va_10=0x102ff0cc0, field_18=0, field_1c=0, field_20=0, field_28=0x20000, field_30=0xd301deb5, field_38=0x16c554, field_40=0, field_48=0, raw=b'\x00\xda\x01\x00\x15\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xc0\x0c\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x11\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\xb5\xde\x01\xd3\x01\x00\x00\x00T\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xa6\x01\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x1da00, rid_tag=21, gpu_va2=0x102ff0cc0, slot_index=17, heap_size=0x20000, cookie=0xd301deb5, type_tag=0x16c554, out_heap_flags=0x1a600),
     ),
-    CallOp(  # op 18: sel=0x07
-        selector=0x07,
+# ── queue setup (sel QUEUE_CREATE / NOTIF_QUEUE / FINALIZE) ─────
+
+    CallOp(  # op 18: QUEUE_CREATE
+        selector=sel.QUEUE_CREATE,
         scalars=[],
-        struct_in=_with_raw(QueueCreateIn(exe_path='/Users/yeren/Desktop/applegpu/capture/metal_tri', label='', field_400=2, field_408=0xffffffff, field_40c=1), b'/Users/yeren/Desktop/applegpu/capture/metal_tri\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00/Users/yeren/Desktop/applegpu/capture/metal_tri\x00\x02\x00\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff\x01\x00\x00\x00'),
+        struct_in=QueueCreateIn(exe_path='metal_tri', queue_flags=2, unk_mask=0xffffffff, enable=1),
         struct_out_sz=16,
-        cap_out=b'\x01\x00\x00\x00\x00\x00\x00\x00\xb6\xde\x01\xd3\x01\x00\x00\x00',
+        cap_out=QueueCreateOut(queue_id=1, cookie=0x1d301deb6),
     ),
-    CallOp(  # op 19: sel=0x10
-        selector=0x10,
-        scalars=NotifQueueIn(size=256, flags=40).as_scalars(),
+    CallOp(  # op 19: NOTIF_QUEUE
+        selector=sel.NOTIF_QUEUE,
+        scalars=NotifQueueIn(ring_size=256, ring_flags=40).as_scalars(),
         struct_in=None,
         struct_out_sz=16,
-        cap_out=b'\x00\x00\x1e\x03\x01\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00',
+        cap_out=ShmemOut(gpu_va=0x1031e0000, size=1),
     ),
-    CallOp(  # op 20: sel=0x1c
-        selector=0x1c,
-        scalars=QueueFinalizeIn(a=1, b=1).as_scalars(),
+    CallOp(  # op 20: QUEUE_FINALIZE
+        selector=sel.QUEUE_FINALIZE,
+        scalars=QueueFinalizeIn(arg0=1, arg1=1).as_scalars(),
         struct_in=None,
         struct_out_sz=0,
     ),
-    CallOp(  # op 21: sel=0x0e
-        selector=0x0e,
-        scalars=ShmemIn(size=16384, flags=0).as_scalars(),
+# ── shared memory (sel SHMEM) ───────────────────────────────────
+
+    CallOp(  # op 21: SHMEM
+        selector=sel.SHMEM,
+        scalars=ShmemIn(size=16384).as_scalars(),
         struct_in=None,
         struct_out_sz=16,
-        cap_out=b'\x00@\x1e\x03\x01\x00\x00\x00\x00@\x00\x00\x01\x00\x00\x00',
+        cap_out=ShmemOut(gpu_va=0x1031e4000, size=16384, shmem_id=1),
     ),
-    CallOp(  # op 22: sel=0x0e
-        selector=0x0e,
-        scalars=ShmemIn(size=16384, flags=1).as_scalars(),
+    CallOp(  # op 22: SHMEM
+        selector=sel.SHMEM,
+        scalars=ShmemIn(size=16384, map_flags=1).as_scalars(),
         struct_in=None,
         struct_out_sz=16,
-        cap_out=b'\x00\x80\x1e\x03\x01\x00\x00\x00\x00@\x00\x00\x02\x00\x00\x00',
+        cap_out=ShmemOut(gpu_va=0x1031e8000, size=16384, shmem_id=2),
     ),
-    CallOp(  # op 23: sel=0x09
-        selector=0x09,
+# ── resource setup (sel NEW_RESOURCE) ───────────────────────────
+
+    CallOp(  # op 23: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x10001, field_0c=1, flags=0x1000101, size=33840, parent_va_38=0, parent_va_40=0, field_48=0x54000, field_5c=24), b'\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010\x84\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00@\x05\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x008\x18\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x10001, create_flags=0x1000101, alloc_size=33840, heap_flags=0x54000, stride_or_count=0x38000000, create_info=24),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x18000, gpu_va_08=0x107a78000, gpu_va_10=0x102ff0d80, field_18=0, field_1c=0, field_20=0, field_28=0x54000, field_30=0xd401deba, field_38=0x16c559, field_40=0, field_48=0, raw=b'\x00\x80\x01\x00\x00\x00\x00\x00\x00\x80\xa7\x07\x01\x00\x00\x00\x80\r\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x12\x00\x00\x00\x00@\x05\x00\x00\x00\x00\x00\xba\xde\x01\xd4\x01\x00\x00\x00Y\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00@\x05\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x18000, gpu_va=0x107a78000, gpu_va2=0x102ff0d80, slot_index=18, heap_size=0x54000, cookie=0xd401deba, type_tag=0x16c559, out_heap_flags=0x54000),
     ),
-    CallOp(  # op 24: sel=0x09
-        selector=0x09,
+    CallOp(  # op 24: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x18000, field_0c=1, flags=0x1000101, size=17456, parent_va_38=0, parent_va_40=0, field_48=32768, field_5c=0), b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010D\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x18000, create_flags=0x1000101, alloc_size=17456, heap_flags=32768, stride_or_count=0x8000000),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x68000, gpu_va_08=0x1031ec000, gpu_va_10=0x102ff0e40, field_18=0, field_1c=0, field_20=0, field_28=32768, field_30=0xd401debb, field_38=0x16c55a, field_40=0, field_48=0, raw=b'\x00\x80\x06\x00\x15\x00\x00\x00\x00\xc0\x1e\x03\x01\x00\x00\x00@\x0e\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x13\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\xbb\xde\x01\xd4\x01\x00\x00\x00Z\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x68000, rid_tag=21, gpu_va=0x1031ec000, gpu_va2=0x102ff0e40, slot_index=19, heap_size=32768, cookie=0xd401debb, type_tag=0x16c55a, out_heap_flags=32768),
     ),
-    CallOp(  # op 25: sel=0x09
-        selector=0x09,
+    CallOp(  # op 25: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x18000, field_0c=1, flags=0x1000101, size=17456, parent_va_38=0, parent_va_40=0, field_48=32768, field_5c=0), b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010D\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x18000, create_flags=0x1000101, alloc_size=17456, heap_flags=32768, stride_or_count=0x8000000),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x78000, gpu_va_08=0x1031f4000, gpu_va_10=0x102ff0f00, field_18=0, field_1c=0, field_20=0, field_28=32768, field_30=0xd401debc, field_38=0x16c55b, field_40=0, field_48=0, raw=b'\x00\x80\x07\x00\x15\x00\x00\x00\x00@\x1f\x03\x01\x00\x00\x00\x00\x0f\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x14\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\xbc\xde\x01\xd4\x01\x00\x00\x00[\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x78000, rid_tag=21, gpu_va=0x1031f4000, gpu_va2=0x102ff0f00, slot_index=20, heap_size=32768, cookie=0xd401debc, type_tag=0x16c55b, out_heap_flags=32768),
     ),
-    CallOp(  # op 26: sel=0x09
-        selector=0x09,
+    CallOp(  # op 26: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x18000, field_0c=1, flags=0x1000101, size=17456, parent_va_38=0, parent_va_40=0, field_48=32768, field_5c=0), b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010D\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x18000, create_flags=0x1000101, alloc_size=17456, heap_flags=32768, stride_or_count=0x8000000),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x88000, gpu_va_08=0x1031fc000, gpu_va_10=0x102ff0fc0, field_18=0, field_1c=0, field_20=0, field_28=32768, field_30=0xd401debd, field_38=0x16c55c, field_40=0, field_48=0, raw=b'\x00\x80\x08\x00\x15\x00\x00\x00\x00\xc0\x1f\x03\x01\x00\x00\x00\xc0\x0f\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x15\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\xbd\xde\x01\xd4\x01\x00\x00\x00\\\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x88000, rid_tag=21, gpu_va=0x1031fc000, gpu_va2=0x102ff0fc0, slot_index=21, heap_size=32768, cookie=0xd401debd, type_tag=0x16c55c, out_heap_flags=32768),
     ),
-    CallOp(  # op 27: sel=0x09
-        selector=0x09,
+    CallOp(  # op 27: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x18000, field_0c=1, flags=0x1000101, size=17456, parent_va_38=0, parent_va_40=0, field_48=32768, field_5c=72), b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010D\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08H\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x18000, create_flags=0x1000101, alloc_size=17456, heap_flags=32768, stride_or_count=0x8000000, create_info=72),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x98000, gpu_va_08=0x107acc000, gpu_va_10=0x102ff1080, field_18=0, field_1c=0, field_20=0, field_28=32768, field_30=0xd401debe, field_38=0x16c55d, field_40=0, field_48=0, raw=b'\x00\x80\t\x00\x15\x00\x00\x00\x00\xc0\xac\x07\x01\x00\x00\x00\x80\x10\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x16\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\xbe\xde\x01\xd4\x01\x00\x00\x00]\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x98000, rid_tag=21, gpu_va=0x107acc000, gpu_va2=0x102ff1080, slot_index=22, heap_size=32768, cookie=0xd401debe, type_tag=0x16c55d, out_heap_flags=32768),
     ),
-    CallOp(  # op 28: sel=0x09
-        selector=0x09,
+    CallOp(  # op 28: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x18000, field_0c=1, flags=0x1000101, size=17456, parent_va_38=0, parent_va_40=0, field_48=32768, field_5c=0), b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010D\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x18000, create_flags=0x1000101, alloc_size=17456, heap_flags=32768, stride_or_count=0x8000000),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0xa8000, gpu_va_08=0x107ad4000, gpu_va_10=0x102ff1140, field_18=0, field_1c=0, field_20=0, field_28=32768, field_30=0xd401debf, field_38=0x16c55e, field_40=0, field_48=0, raw=b'\x00\x80\n\x00\x15\x00\x00\x00\x00@\xad\x07\x01\x00\x00\x00@\x11\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x17\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\xbf\xde\x01\xd4\x01\x00\x00\x00^\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0xa8000, rid_tag=21, gpu_va=0x107ad4000, gpu_va2=0x102ff1140, slot_index=23, heap_size=32768, cookie=0xd401debf, type_tag=0x16c55e, out_heap_flags=32768),
     ),
-    CallOp(  # op 29: sel=0x09
-        selector=0x09,
+    CallOp(  # op 29: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x18000, field_0c=1, flags=0x1000101, size=50224, parent_va_38=0, parent_va_40=0, field_48=32768, field_5c=0), b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010\xc4\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00H\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x18000, create_flags=0x1000101, alloc_size=50224, heap_flags=32768, stride_or_count=0x48000000),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x70000, gpu_va_08=0x107adc000, gpu_va_10=0x102ff1200, field_18=0, field_1c=0, field_20=0, field_28=32768, field_30=0xd401dec0, field_38=0x16c55f, field_40=0, field_48=0, raw=b'\x00\x00\x07\x00\x00\x00\x00\x00\x00\xc0\xad\x07\x01\x00\x00\x00\x00\x12\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x18\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\xc0\xde\x01\xd4\x01\x00\x00\x00_\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x70000, gpu_va=0x107adc000, gpu_va2=0x102ff1200, slot_index=24, heap_size=32768, cookie=0xd401dec0, type_tag=0x16c55f, out_heap_flags=32768),
     ),
-    CallOp(  # op 30: sel=0x09
-        selector=0x09,
+    CallOp(  # op 30: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x18000, field_0c=1, flags=0x1000101, size=50224, parent_va_38=0, parent_va_40=0, field_48=32768, field_5c=0), b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010\xc4\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00H\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x18000, create_flags=0x1000101, alloc_size=50224, heap_flags=32768, stride_or_count=0x48000000),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x80000, gpu_va_08=0x107ae4000, gpu_va_10=0x102ff12c0, field_18=0, field_1c=0, field_20=0, field_28=32768, field_30=0xd401dec1, field_38=0x16c560, field_40=0, field_48=0, raw=b'\x00\x00\x08\x00\x00\x00\x00\x00\x00@\xae\x07\x01\x00\x00\x00\xc0\x12\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x19\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\xc1\xde\x01\xd4\x01\x00\x00\x00`\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x80000, gpu_va=0x107ae4000, gpu_va2=0x102ff12c0, slot_index=25, heap_size=32768, cookie=0xd401dec1, type_tag=0x16c560, out_heap_flags=32768),
     ),
-    CallOp(  # op 31: sel=0x09
-        selector=0x09,
+    CallOp(  # op 31: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x10000, field_0c=1, flags=0x1000101, size=17456, parent_va_38=0, parent_va_40=0, field_48=0x100000, field_5c=0), b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010D\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x18\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x10000, create_flags=0x1000101, alloc_size=17456, heap_flags=0x100000, stride_or_count=0x18000000),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0xb8000, gpu_va_08=0x107aec000, gpu_va_10=0x102ff1380, field_18=0, field_1c=0, field_20=0, field_28=0x100000, field_30=0xd401dec2, field_38=0x16c561, field_40=0, field_48=0, raw=b'\x00\x80\x0b\x00\x15\x00\x00\x00\x00\xc0\xae\x07\x01\x00\x00\x00\x80\x13\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x1a\x00\x00\x00\x00\x00\x10\x00\x00\x00\x00\x00\xc2\xde\x01\xd4\x01\x00\x00\x00a\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0xb8000, rid_tag=21, gpu_va=0x107aec000, gpu_va2=0x102ff1380, slot_index=26, heap_size=0x100000, cookie=0xd401dec2, type_tag=0x16c561, out_heap_flags=0x100000),
     ),
-    CallOp(  # op 32: sel=0x09
-        selector=0x09,
+    CallOp(  # op 32: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x18000, field_0c=1, flags=0x1000101, size=17456, parent_va_38=0, parent_va_40=0, field_48=32768, field_5c=0), b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010D\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x18000, create_flags=0x1000101, alloc_size=17456, heap_flags=32768, stride_or_count=0x8000000),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x1c0000, gpu_va_08=0x107bec000, gpu_va_10=0x102ff1440, field_18=0, field_1c=0, field_20=0, field_28=32768, field_30=0xd401dec3, field_38=0x16c562, field_40=0, field_48=0, raw=b'\x00\x00\x1c\x00\x15\x00\x00\x00\x00\xc0\xbe\x07\x01\x00\x00\x00@\x14\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x1b\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\xc3\xde\x01\xd4\x01\x00\x00\x00b\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x1c0000, rid_tag=21, gpu_va=0x107bec000, gpu_va2=0x102ff1440, slot_index=27, heap_size=32768, cookie=0xd401dec3, type_tag=0x16c562, out_heap_flags=32768),
     ),
-    CallOp(  # op 33: sel=0x09
-        selector=0x09,
+    CallOp(  # op 33: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x18000, field_0c=1, flags=0x1000101, size=17456, parent_va_38=0, parent_va_40=0, field_48=32768, field_5c=0), b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010D\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x18\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x18000, create_flags=0x1000101, alloc_size=17456, heap_flags=32768, stride_or_count=0x18000000),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x1d0000, gpu_va_08=0x107bf4000, gpu_va_10=0x102ff1500, field_18=0, field_1c=0, field_20=0, field_28=32768, field_30=0xd401dec4, field_38=0x16c563, field_40=0, field_48=0, raw=b'\x00\x00\x1d\x00\x15\x00\x00\x00\x00@\xbf\x07\x01\x00\x00\x00\x00\x15\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x1c\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\xc4\xde\x01\xd4\x01\x00\x00\x00c\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x1d0000, rid_tag=21, gpu_va=0x107bf4000, gpu_va2=0x102ff1500, slot_index=28, heap_size=32768, cookie=0xd401dec4, type_tag=0x16c563, out_heap_flags=32768),
     ),
-    CallOp(  # op 34: sel=0x09
-        selector=0x09,
+    CallOp(  # op 34: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x18000, field_0c=1, flags=0x1000101, size=17456, parent_va_38=0, parent_va_40=0, field_48=32768, field_5c=0), b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010D\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x18000, create_flags=0x1000101, alloc_size=17456, heap_flags=32768, stride_or_count=0x8000000),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x1e0000, gpu_va_08=0x107bfc000, gpu_va_10=0x102ff15c0, field_18=0, field_1c=0, field_20=0, field_28=32768, field_30=0xd401dec5, field_38=0x16c564, field_40=0, field_48=0, raw=b'\x00\x00\x1e\x00\x15\x00\x00\x00\x00\xc0\xbf\x07\x01\x00\x00\x00\xc0\x15\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x1d\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\xc5\xde\x01\xd4\x01\x00\x00\x00d\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x1e0000, rid_tag=21, gpu_va=0x107bfc000, gpu_va2=0x102ff15c0, slot_index=29, heap_size=32768, cookie=0xd401dec5, type_tag=0x16c564, out_heap_flags=32768),
     ),
-    CallOp(  # op 35: sel=0x09
-        selector=0x09,
+    CallOp(  # op 35: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x18000, field_0c=1, flags=0x1000101, size=17456, parent_va_38=0, parent_va_40=0, field_48=32768, field_5c=0), b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010D\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x18000, create_flags=0x1000101, alloc_size=17456, heap_flags=32768, stride_or_count=0x8000000),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x1f0000, gpu_va_08=0x107c04000, gpu_va_10=0x102ff1680, field_18=0, field_1c=0, field_20=0, field_28=32768, field_30=0xd401dec6, field_38=0x16c565, field_40=0, field_48=0, raw=b'\x00\x00\x1f\x00\x15\x00\x00\x00\x00@\xc0\x07\x01\x00\x00\x00\x80\x16\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x1e\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\xc6\xde\x01\xd4\x01\x00\x00\x00e\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x1f0000, rid_tag=21, gpu_va=0x107c04000, gpu_va2=0x102ff1680, slot_index=30, heap_size=32768, cookie=0xd401dec6, type_tag=0x16c565, out_heap_flags=32768),
     ),
-    CallOp(  # op 36: sel=0x09
-        selector=0x09,
+    CallOp(  # op 36: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x18000, field_0c=1, flags=0x1000101, size=17456, parent_va_38=0, parent_va_40=0, field_48=32768, field_5c=0), b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010D\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x18000, create_flags=0x1000101, alloc_size=17456, heap_flags=32768, stride_or_count=0x8000000),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x200000, gpu_va_08=0x107c0c000, gpu_va_10=0x102ff1740, field_18=0, field_1c=0, field_20=0, field_28=32768, field_30=0xd401dec7, field_38=0x16c566, field_40=0, field_48=0, raw=b'\x00\x00 \x00\x15\x00\x00\x00\x00\xc0\xc0\x07\x01\x00\x00\x00@\x17\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x1f\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\xc7\xde\x01\xd4\x01\x00\x00\x00f\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x200000, rid_tag=21, gpu_va=0x107c0c000, gpu_va2=0x102ff1740, slot_index=31, heap_size=32768, cookie=0xd401dec7, type_tag=0x16c566, out_heap_flags=32768),
     ),
-    CallOp(  # op 37: sel=0x09
-        selector=0x09,
+    CallOp(  # op 37: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x18000, field_0c=1, flags=0x1000101, size=17456, parent_va_38=0, parent_va_40=0, field_48=32768, field_5c=0), b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010D\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x18000, create_flags=0x1000101, alloc_size=17456, heap_flags=32768, stride_or_count=0x8000000),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x210000, gpu_va_08=0x107c14000, gpu_va_10=0x102ff1800, field_18=0, field_1c=0, field_20=0, field_28=32768, field_30=0xd401dec8, field_38=0x16c567, field_40=0, field_48=0, raw=b'\x00\x00!\x00\x15\x00\x00\x00\x00@\xc1\x07\x01\x00\x00\x00\x00\x18\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00 \x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\xc8\xde\x01\xd4\x01\x00\x00\x00g\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x210000, rid_tag=21, gpu_va=0x107c14000, gpu_va2=0x102ff1800, slot_index=32, heap_size=32768, cookie=0xd401dec8, type_tag=0x16c567, out_heap_flags=32768),
     ),
-    CallOp(  # op 38: sel=0x09
-        selector=0x09,
+    CallOp(  # op 38: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x18000, field_0c=1, flags=0x1000101, size=17456, parent_va_38=0, parent_va_40=0, field_48=32768, field_5c=0), b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010D\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x18000, create_flags=0x1000101, alloc_size=17456, heap_flags=32768, stride_or_count=0x8000000),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x220000, gpu_va_08=0x107c1c000, gpu_va_10=0x102ff18c0, field_18=0, field_1c=0, field_20=0, field_28=32768, field_30=0xd401dec9, field_38=0x16c568, field_40=0, field_48=0, raw=b'\x00\x00"\x00\x15\x00\x00\x00\x00\xc0\xc1\x07\x01\x00\x00\x00\xc0\x18\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00!\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\xc9\xde\x01\xd4\x01\x00\x00\x00h\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x220000, rid_tag=21, gpu_va=0x107c1c000, gpu_va2=0x102ff18c0, slot_index=33, heap_size=32768, cookie=0xd401dec9, type_tag=0x16c568, out_heap_flags=32768),
     ),
-    CallOp(  # op 39: sel=0x09
-        selector=0x09,
+    CallOp(  # op 39: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x187c0, field_0c=1, flags=0x1000101, size=17456, parent_va_38=0, parent_va_40=0, field_48=34752, field_5c=0), b'\x00\x00\x00\x00\x00\x00\x00\x00\xc0\x87\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010D\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xc0\x87\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x187c0, create_flags=0x1000101, alloc_size=17456, heap_flags=34752, stride_or_count=0x8000000),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x230000, gpu_va_08=0x107c24000, gpu_va_10=0x102ff1980, field_18=0, field_1c=0, field_20=0, field_28=49152, field_30=0xd401deca, field_38=0x16c569, field_40=0, field_48=0, raw=b'\x00\x00#\x00\x15\x00\x00\x00\x00@\xc2\x07\x01\x00\x00\x00\x80\x19\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"\x00\x00\x00\x00\xc0\x00\x00\x00\x00\x00\x00\xca\xde\x01\xd4\x01\x00\x00\x00i\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xc0\x00\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x230000, rid_tag=21, gpu_va=0x107c24000, gpu_va2=0x102ff1980, slot_index=34, heap_size=49152, cookie=0xd401deca, type_tag=0x16c569, out_heap_flags=49152),
     ),
-    CallOp(  # op 40: sel=0x09
-        selector=0x09,
+    CallOp(  # op 40: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x1ff80, field_0c=1, flags=0x1000101, size=17456, parent_va_38=0, parent_va_40=0, field_48=65408, field_5c=0), b'\x00\x00\x00\x00\x00\x00\x00\x00\x80\xff\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010D\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\xff\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x18\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x1ff80, create_flags=0x1000101, alloc_size=17456, heap_flags=65408, stride_or_count=0x18000000),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x240000, gpu_va_08=0x107c30000, gpu_va_10=0x102ff1a40, field_18=0, field_1c=0, field_20=0, field_28=0x10000, field_30=0xd401decb, field_38=0x16c56a, field_40=0, field_48=0, raw=b'\x00\x00$\x00\x15\x00\x00\x00\x00\x00\xc3\x07\x01\x00\x00\x00@\x1a\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00#\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\xcb\xde\x01\xd4\x01\x00\x00\x00j\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x240000, rid_tag=21, gpu_va=0x107c30000, gpu_va2=0x102ff1a40, slot_index=35, heap_size=0x10000, cookie=0xd401decb, type_tag=0x16c56a, out_heap_flags=0x10000),
     ),
-    CallOp(  # op 41: sel=0x09
-        selector=0x09,
+    CallOp(  # op 41: NEW_RESOURCE
+        selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=_with_raw(NewResourceIn(parent_qword=0, type_version=0x10000, field_0c=1, flags=0x1000101, size=17456, parent_va_38=0, parent_va_40=0, field_48=0xc0000, field_5c=0), b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x01\x00\x00\x00\x01\x01\x00\x010D\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0c\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        struct_in=ResourceCreateIn(type_version=0x10000, create_flags=0x1000101, alloc_size=17456, heap_flags=0xc0000, stride_or_count=0x8000000),
         struct_out_sz=88,
-        cap_out=NewResourceOut(rid=0x258000, gpu_va_08=0x107c40000, gpu_va_10=0x102ff1b00, field_18=0, field_1c=0, field_20=0, field_28=0xc0000, field_30=0xd401decc, field_38=0x16c56b, field_40=0, field_48=0, raw=b'\x00\x80%\x00\x15\x00\x00\x00\x00\x00\xc4\x07\x01\x00\x00\x00\x00\x1b\xff\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00$\x00\x00\x00\x00\x00\x0c\x00\x00\x00\x00\x00\xcc\xde\x01\xd4\x01\x00\x00\x00k\xc5\x16\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0c\x00\x00\x00\x00\x00'),
+        cap_out=ResourceCreateOut(rid=0x258000, rid_tag=21, gpu_va=0x107c40000, gpu_va2=0x102ff1b00, slot_index=36, heap_size=0xc0000, cookie=0xd401decc, type_tag=0x16c56b, out_heap_flags=0xc0000),
     ),
+# ── submit (trap0) ──────────────────────────────────────────────
+
     TrapOp(  # op 42
         trap_idx=0,
         p1=1,
         p2=64,
         use_p4=True,
-        snap=_with_raw(TrapSubmitSnap(field_00=2, field_04=1, field_08=0, field_10=0xb2f094480, field_18=0xb2f094390), b'\x02\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80D\t/\x0b\x00\x00\x00\x90C\t/\x0b\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+        snap=Trap0SubmitSnap(buf_count=2, submit_flags=1, cmdbuf_gpu_va=0xb2f094480, cmdbuf_aux_va=0xb2f094390),
     ),
 ]
 
 
-def replay() -> int:
+def execute_op(
+    iokit: IOKit,
+    conn: int,
+    addr_map: AddrMap,
+    idx: int,
+    op: OpenOp | CallOp | TrapOp,
+    verbose: bool,
+) -> int:
+    """Run one captured op. Returns 1 on failure, 0 on success."""
+    if isinstance(op, OpenOp):
+        if verbose:
+            print(f"[{idx}] IOServiceOpen type=0x{op.client_type:x} (already open)")
+        return 0
+
+    if isinstance(op, CallOp):
+        raw = op.pack_struct_in()
+        buf = bytearray(raw) if raw else bytearray()
+        if buf:
+            addr_map.patch_u64_buf(buf)
+        rc, live_out, out_sz = agx_call(
+            iokit, conn, op.selector, op.scalars,
+            bytes(buf) if buf else None, op.struct_out_sz,
+        )
+        if verbose:
+            print(f"[{idx}] sel=0x{op.selector:02x} rc=0x{rc:x} out_sz={out_sz}")
+        if rc == 0 and op.cap_out is not None:
+            cap_raw = getattr(op.cap_out, "raw", b"")
+            if not cap_raw and hasattr(op.cap_out, "pack"):
+                cap_raw = op.cap_out.pack()
+            if cap_raw:
+                addr_map.learn_resource_maps(cap_raw, live_out)
+        return 1 if rc != 0 else 0
+
+    if isinstance(op, TrapOp):
+        snap = bytearray(op.snap.pack())
+        addr_map.patch_u64_buf(snap)
+        rc = submit_task(
+            iokit, conn, op.trap_idx, op.p1, op.p2, bytes(snap), op.use_p4,
+        )
+        if verbose:
+            print(f"[{idx}] trap{op.trap_idx} rc=0x{rc:x} snap={len(snap)} bytes")
+        return 1 if rc != 0 else 0
+
+    return 1
+
+
+def run_workload(*, verbose: bool = False, submit: bool = True) -> int:
+    """Open device, replay OPS, return failure count."""
+    if not submit:
+        print(f"{WORKLOAD}: {len(OPS)} ops (dry-run, no IOKit)")
+        for idx, op in enumerate(OPS):
+            kind = type(op).__name__
+            if isinstance(op, CallOp):
+                print(f"  [{idx}] {kind} sel=0x{op.selector:02x}")
+            elif isinstance(op, TrapOp):
+                print(f"  [{idx}] {kind} trap{op.trap_idx}")
+            else:
+                print(f"  [{idx}] {kind}")
+        return 0
+
     iokit = IOKit()
     addr_map = AddrMap()
-    svc = iokit.find_agx_service()
-    if not svc:
-        print("no AGX accelerator", file=sys.stderr)
-        return 1
-
-    conn = 0
+    svc = conn = 0
     fails = 0
-    print("replaying standalone add ({} ops)".format(len(OPS)))
+    print(f"{WORKLOAD}: replaying {len(OPS)} ops")
 
     try:
+        svc, conn = open_agx(iokit)
+        if verbose:
+            print(f"[0] IOServiceOpen type=0x{CLIENT_TYPE:x} conn=0x{conn:x} rc=0x0")
+
         for idx, op in enumerate(OPS):
             if isinstance(op, OpenOp):
-                if not conn:
-                    kr, conn = iokit.service_open(svc, op.client_type)
-                    print(f"[{idx}] IOServiceOpen type=0x{op.client_type:x} conn=0x{conn:x} rc=0x{kr:x}")
-                    if kr != 0:
-                        return 1
-                else:
-                    print(f"[{idx}] skip duplicate open")
                 continue
-
-            if not conn:
-                print("op before open", file=sys.stderr)
-                return 1
-
-            if isinstance(op, CallOp):
-                raw = op.pack_struct_in()
-                buf = bytearray(raw) if raw else bytearray()
-                if buf:
-                    addr_map.patch_u64_buf(buf)
-                rc, _so, live_out, out_sz = iokit.connect_call(
-                    conn, op.selector, op.scalars,
-                    bytes(buf) if buf else None,
-                    0, op.struct_out_sz,
-                )
-                print(f"[{idx}] sel=0x{op.selector:02x} rc=0x{rc:x} out_sz={out_sz}")
-                if rc == 0 and op.cap_out is not None:
-                    cap_raw = getattr(op.cap_out, "raw", b"")
-                    if cap_raw:
-                        addr_map.learn_resource_maps(cap_raw, live_out)
-                fails += rc != 0
-                continue
-
-            if isinstance(op, TrapOp):
-                snap = bytearray(op.snap.pack())
-                addr_map.patch_u64_buf(snap)
-                p3 = p4 = 0
-                ptr = None
-                libc = None
-                if snap:
-                    alloc_sz = len(snap) + 0x100
-                    ptr, libc = alloc_aligned(alloc_sz)
-                    dst = (ctypes.c_uint8 * alloc_sz).from_address(ptr.value)
-                    ctypes.memmove(dst, bytes(snap), len(snap))
-                    p3 = ptr.value
-                    p4 = ptr.value + 0x84 if op.use_p4 else 0
-                rc = iokit.connect_trap(conn, op.trap_idx, op.p1, op.p2, p3, p4)
-                print(f"[{idx}] trap{op.trap_idx} rc=0x{rc:x} snap={len(snap)} bytes")
-                if ptr is not None and libc is not None:
-                    libc.free(ptr)
-                fails += rc != 0
-                continue
-
+            fails += execute_op(iokit, conn, addr_map, idx, op, verbose)
     finally:
-        if conn:
-            iokit.lib.IOServiceClose(conn)
-        iokit.lib.IOObjectRelease(svc)
+        close_agx(iokit, svc, conn)
 
-    print(f"done: {len(OPS)} ops, {fails} failures, {len(addr_map)} addr maps")
+    if verbose:
+        print(f"addr maps: {len(addr_map)}")
+    return fails
+
+
+def verify(fails: int) -> None:
+    if WORKLOAD == "add":
+        print(f"expected={list(EXPECTED)}")
+    elif WORKLOAD == "tri":
+        print(f"expected_center_BGRA={EXPECTED_CENTER_BGRA}")
+    if fails == 0:
+        print("PASS")
+    else:
+        print(f"FAIL ({fails} ioctl errors)")
+
+
+def main() -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--dry-run", action="store_true", help="list ops only, no IOKit calls",
+    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="per-op ioctl log")
+    args = parser.parse_args()
+
+    fails = run_workload(verbose=args.verbose, submit=not args.dry_run)
+    if not args.dry_run:
+        verify(fails)
     return 1 if fails else 0
 
 
 if __name__ == "__main__":
-    sys.exit(replay())
+    sys.exit(main())

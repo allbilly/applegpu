@@ -1,4 +1,8 @@
-"""Decode AGX IOKit capture blobs into named structures."""
+"""Decode AGX IOKit capture blobs into named structures.
+
+Field names follow macOS IOGPU RE (ref/agx-research): selector 0x09 ResourceCreate,
+0x07 QueueCreate, 0x0e ShmemCreate, trap0 Submit fast.
+"""
 
 from __future__ import annotations
 
@@ -23,88 +27,112 @@ def _cstr(buf: bytes, off: int, maxlen: int) -> str:
 
 
 @dataclass
-class NewResourceIn:
+class ResourceCreateIn:
     """Selector 0x09 s_new_resource input (104 bytes)."""
 
-    parent_qword: int = 0
+    parent_handle: int = 0
     type_version: int = 0x0001_0001
-    field_0c: int = 1
-    flags: int = 0x0100_0101
-    size: int = 0
-    parent_va_38: int = 0
-    parent_va_40: int = 0
-    field_48: int = 0
-    field_5c: int = 0
+    resource_class: int = 1
+    create_flags: int = 0x0100_0101
+    alloc_size: int = 0
+    suballoc_flag: int = 0
+    parent_gpu_va: int = 0
+    parent_gpu_va2: int = 0
+    heap_flags: int = 0
+    heap_lane: int = 0
+    stride_or_count: int = 0
+    create_info: int = 0
+    backing_ptr: int = 0
     raw_tail: bytes = field(default_factory=bytes)
 
     @classmethod
-    def from_bytes(cls, data: bytes) -> NewResourceIn:
+    def from_bytes(cls, data: bytes) -> ResourceCreateIn:
         if len(data) != 104:
-            raise ValueError(f"NewResourceIn expects 104 bytes, got {len(data)}")
+            raise ValueError(f"ResourceCreateIn expects 104 bytes, got {len(data)}")
         return cls(
-            parent_qword=_u64(data, 0),
+            parent_handle=_u64(data, 0),
             type_version=_u32(data, 8),
-            field_0c=_u32(data, 12),
-            flags=_u32(data, 16),
-            size=_u32(data, 20),
-            parent_va_38=_u64(data, 0x38),
-            parent_va_40=_u64(data, 0x40),
-            field_48=_u32(data, 0x48),
-            field_5c=_u32(data, 0x5C),
-            raw_tail=data,
+            resource_class=_u32(data, 12),
+            create_flags=_u32(data, 16),
+            alloc_size=_u32(data, 20),
+            suballoc_flag=_u32(data, 0x30),
+            parent_gpu_va=_u64(data, 0x38),
+            parent_gpu_va2=_u64(data, 0x40),
+            heap_flags=_u32(data, 0x48),
+            heap_lane=_u32(data, 0x50),
+            stride_or_count=_u32(data, 0x58),
+            create_info=_u32(data, 0x5C),
+            backing_ptr=_u64(data, 0x60),
         )
 
     def pack(self) -> bytes:
         if self.raw_tail:
             return bytes(self.raw_tail)
         buf = bytearray(104)
-        struct.pack_into("<Q", buf, 0, self.parent_qword)
+        struct.pack_into("<Q", buf, 0, self.parent_handle)
         struct.pack_into("<I", buf, 8, self.type_version)
-        struct.pack_into("<I", buf, 12, self.field_0c)
-        struct.pack_into("<I", buf, 16, self.flags)
-        struct.pack_into("<I", buf, 20, self.size)
-        struct.pack_into("<Q", buf, 0x38, self.parent_va_38)
-        struct.pack_into("<Q", buf, 0x40, self.parent_va_40)
-        struct.pack_into("<I", buf, 0x48, self.field_48)
-        struct.pack_into("<I", buf, 0x5C, self.field_5c)
+        struct.pack_into("<I", buf, 12, self.resource_class)
+        struct.pack_into("<I", buf, 16, self.create_flags)
+        struct.pack_into("<I", buf, 20, self.alloc_size)
+        struct.pack_into("<I", buf, 0x30, self.suballoc_flag)
+        struct.pack_into("<Q", buf, 0x38, self.parent_gpu_va)
+        struct.pack_into("<Q", buf, 0x40, self.parent_gpu_va2)
+        struct.pack_into("<I", buf, 0x48, self.heap_flags)
+        struct.pack_into("<I", buf, 0x50, self.heap_lane)
+        struct.pack_into("<I", buf, 0x58, self.stride_or_count)
+        struct.pack_into("<I", buf, 0x5C, self.create_info)
+        struct.pack_into("<Q", buf, 0x60, self.backing_ptr)
         return bytes(buf)
 
 
 @dataclass
-class NewResourceOut:
+class ResourceCreateOut:
     """Selector 0x09 output (88 bytes) — captured reference for addr-map learning."""
 
     rid: int = 0
-    gpu_va_08: int = 0
-    gpu_va_10: int = 0
-    field_18: int = 0
-    field_1c: int = 0
-    field_20: int = 0
-    field_28: int = 0
-    field_30: int = 0
-    field_38: int = 0
-    field_40: int = 0
-    field_48: int = 0
+    rid_tag: int = 0
+    gpu_va: int = 0
+    gpu_va2: int = 0
+    slot_index: int = 0
+    heap_size: int = 0
+    cookie: int = 0
+    cookie_flags: int = 0
+    type_tag: int = 0
+    out_heap_flags: int = 0
     raw: bytes = field(default_factory=bytes)
 
     @classmethod
-    def from_bytes(cls, data: bytes) -> NewResourceOut:
+    def from_bytes(cls, data: bytes) -> ResourceCreateOut:
         if len(data) != 88:
-            raise ValueError(f"NewResourceOut expects 88 bytes, got {len(data)}")
+            raise ValueError(f"ResourceCreateOut expects 88 bytes, got {len(data)}")
         return cls(
             rid=_u32(data, 0),
-            gpu_va_08=_u64(data, 8),
-            gpu_va_10=_u64(data, 16),
-            field_18=_u32(data, 0x18),
-            field_1c=_u32(data, 0x1C),
-            field_20=_u32(data, 0x20),
-            field_28=_u64(data, 0x28),
-            field_30=_u32(data, 0x30),
-            field_38=_u32(data, 0x38),
-            field_40=_u32(data, 0x40),
-            field_48=_u32(data, 0x48),
-            raw=data,
+            rid_tag=_u32(data, 4),
+            gpu_va=_u64(data, 8),
+            gpu_va2=_u64(data, 16),
+            slot_index=_u32(data, 0x24),
+            heap_size=_u64(data, 0x28),
+            cookie=_u32(data, 0x30),
+            cookie_flags=_u32(data, 0x34),
+            type_tag=_u32(data, 0x38),
+            out_heap_flags=_u32(data, 0x50),
         )
+
+    def pack(self) -> bytes:
+        if self.raw:
+            return bytes(self.raw)
+        buf = bytearray(88)
+        struct.pack_into("<I", buf, 0, self.rid)
+        struct.pack_into("<I", buf, 4, self.rid_tag)
+        struct.pack_into("<Q", buf, 8, self.gpu_va)
+        struct.pack_into("<Q", buf, 16, self.gpu_va2)
+        struct.pack_into("<I", buf, 0x24, self.slot_index)
+        struct.pack_into("<Q", buf, 0x28, self.heap_size)
+        struct.pack_into("<I", buf, 0x30, self.cookie)
+        struct.pack_into("<I", buf, 0x34, self.cookie_flags)
+        struct.pack_into("<I", buf, 0x38, self.type_tag)
+        struct.pack_into("<I", buf, 0x50, self.out_heap_flags)
+        return bytes(buf)
 
 
 @dataclass
@@ -113,9 +141,9 @@ class QueueCreateIn:
 
     exe_path: str = ""
     label: str = ""
-    field_400: int = 2
-    field_408: int = 0xFFFFFFFF
-    field_40c: int = 1
+    queue_flags: int = 2
+    unk_mask: int = 0xFFFFFFFF
+    enable: int = 1
     raw: bytes = field(default_factory=bytes)
 
     @classmethod
@@ -125,10 +153,9 @@ class QueueCreateIn:
         return cls(
             exe_path=_cstr(data, 0x000, 0x3C7),
             label=_cstr(data, 0x3C8, 0x37),
-            field_400=_u64(data, 0x400),
-            field_408=_u32(data, 0x408),
-            field_40c=_u32(data, 0x40C),
-            raw=data,
+            queue_flags=_u64(data, 0x400),
+            unk_mask=_u32(data, 0x408),
+            enable=_u32(data, 0x40C),
         )
 
     def pack(self) -> bytes:
@@ -139,103 +166,121 @@ class QueueCreateIn:
         lb = self.label.encode("utf-8")[:0x37]
         buf[0x000 : 0x000 + len(ep)] = ep
         buf[0x3C8 : 0x3C8 + len(lb)] = lb
-        struct.pack_into("<Q", buf, 0x400, self.field_400)
-        struct.pack_into("<I", buf, 0x408, self.field_408)
-        struct.pack_into("<I", buf, 0x40C, self.field_40c)
+        struct.pack_into("<Q", buf, 0x400, self.queue_flags)
+        struct.pack_into("<I", buf, 0x408, self.unk_mask)
+        struct.pack_into("<I", buf, 0x40C, self.enable)
         return bytes(buf)
 
 
 @dataclass
 class QueueCreateOut:
     queue_id: int = 0
-    extra: int = 0
+    cookie: int = 0
 
     @classmethod
     def from_bytes(cls, data: bytes) -> QueueCreateOut:
-        return cls(_u64(data, 0), _u64(data, 8))
+        return cls(_u32(data, 0), _u64(data, 8))
+
+    def pack(self) -> bytes:
+        buf = bytearray(16)
+        struct.pack_into("<I", buf, 0, self.queue_id)
+        struct.pack_into("<Q", buf, 8, self.cookie)
+        return bytes(buf)
 
 
 @dataclass
 class NotifQueueIn:
-  size: int = 0x100
-  flags: int = 0x28
+    ring_size: int = 0x100
+    ring_flags: int = 0x28
 
-  def as_scalars(self) -> list[int]:
-      return [self.size, self.flags]
+    def as_scalars(self) -> list[int]:
+        return [self.ring_size, self.ring_flags]
 
 
 @dataclass
 class QueueFinalizeIn:
-    a: int = 1
-    b: int = 1
+    arg0: int = 1
+    arg1: int = 1
 
     def as_scalars(self) -> list[int]:
-      return [self.a, self.b]
+        return [self.arg0, self.arg1]
 
 
 @dataclass
 class ShmemIn:
     size: int = 0x4000
-    flags: int = 0
+    map_flags: int = 0
 
     def as_scalars(self) -> list[int]:
-        return [self.size, self.flags]
+        return [self.size, self.map_flags]
 
 
 @dataclass
 class ShmemOut:
-    vaddr: int = 0
+    gpu_va: int = 0
     size: int = 0
-    handle: int = 0
+    shmem_id: int = 0
 
     @classmethod
     def from_bytes(cls, data: bytes) -> ShmemOut:
         return cls(_u64(data, 0), _u32(data, 8), _u32(data, 12))
 
+    def pack(self) -> bytes:
+        buf = bytearray(16)
+        struct.pack_into("<Q", buf, 0, self.gpu_va)
+        struct.pack_into("<I", buf, 8, self.size)
+        struct.pack_into("<I", buf, 12, self.shmem_id)
+        return bytes(buf)
+
 
 @dataclass
-class TrapSubmitSnap:
+class Trap0SubmitSnap:
     """Trap0 fast-path submit buffer (64 bytes)."""
 
-    field_00: int = 0
-    field_04: int = 0
-    field_08: int = 0
-    field_10: int = 0
-    field_18: int = 0
+    buf_count: int = 0
+    submit_flags: int = 0
+    reserved: int = 0
+    cmdbuf_gpu_va: int = 0
+    cmdbuf_aux_va: int = 0
     raw: bytes = field(default_factory=bytes)
 
     @classmethod
-    def from_bytes(cls, data: bytes) -> TrapSubmitSnap:
+    def from_bytes(cls, data: bytes) -> Trap0SubmitSnap:
         return cls(
-            field_00=_u32(data, 0),
-            field_04=_u32(data, 4),
-            field_08=_u64(data, 8),
-            field_10=_u64(data, 0x10),
-            field_18=_u64(data, 0x18),
-            raw=data,
+            buf_count=_u32(data, 0),
+            submit_flags=_u32(data, 4),
+            reserved=_u64(data, 8),
+            cmdbuf_gpu_va=_u64(data, 0x10),
+            cmdbuf_aux_va=_u64(data, 0x18),
         )
 
     def pack(self) -> bytes:
         if self.raw:
             return bytes(self.raw)
         buf = bytearray(64)
-        struct.pack_into("<I", buf, 0, self.field_00)
-        struct.pack_into("<I", buf, 4, self.field_04)
-        struct.pack_into("<Q", buf, 8, self.field_08)
-        struct.pack_into("<Q", buf, 0x10, self.field_10)
-        struct.pack_into("<Q", buf, 0x18, self.field_18)
+        struct.pack_into("<I", buf, 0, self.buf_count)
+        struct.pack_into("<I", buf, 4, self.submit_flags)
+        struct.pack_into("<Q", buf, 8, self.reserved)
+        struct.pack_into("<Q", buf, 0x10, self.cmdbuf_gpu_va)
+        struct.pack_into("<Q", buf, 0x18, self.cmdbuf_aux_va)
         return bytes(buf)
 
 
+# Backward-compatible aliases (decode tooling).
+NewResourceIn = ResourceCreateIn
+NewResourceOut = ResourceCreateOut
+TrapSubmitSnap = Trap0SubmitSnap
+
 SELECTOR_DECODERS = {
-    0x09: ("NewResourceIn", NewResourceIn),
+    0x09: ("ResourceCreateIn", ResourceCreateIn),
     0x07: ("QueueCreateIn", QueueCreateIn),
 }
 
 SELECTOR_OUT_DECODERS = {
-    0x09: ("NewResourceOut", NewResourceOut),
+    0x09: ("ResourceCreateOut", ResourceCreateOut),
     0x07: ("QueueCreateOut", QueueCreateOut),
-    0x0e: ("ShmemOut", ShmemOut),
+    0x0E: ("ShmemOut", ShmemOut),
+    0x10: ("ShmemOut", ShmemOut),
 }
 
 

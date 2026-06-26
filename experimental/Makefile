@@ -7,16 +7,16 @@ FRAMEWORKS = -framework IOKit
 all: iokit_capture.dylib metal_add metal_tri replay
 
 standalone-tri: replay-py
-	python3 cap2standalone.py tri.cap -o replay_tri_standalone.py
+	python3 cap2standalone.py tri.cap -o ../examples/tri.py
 
 run-standalone-tri: standalone-tri
-	python3 replay_tri_standalone.py
+	python3 ../examples/tri.py
 
 standalone: replay-py
-	python3 cap2standalone.py add.cap -o replay_add_standalone.py
+	python3 cap2standalone.py add.cap -o ../examples/add.py
 
 run-standalone: standalone
-	python3 replay_add_standalone.py
+	python3 ../examples/add.py
 
 replay-py:
 	chmod +x replay.py
@@ -51,5 +51,4 @@ run: capture
 	./replay add.cap
 
 clean:
-	rm -f iokit_capture.dylib metal_add metal_tri replay add.cap tri.cap \
-		replay_add_standalone.py replay_tri_standalone.py
+	rm -f iokit_capture.dylib metal_add metal_tri replay add.cap tri.cap

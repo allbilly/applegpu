@@ -2,88 +2,188 @@
 """Generate a standalone replay script from capture.bin.
 
 Decodes all blobs into structure code — no runtime .cap or hex file loading.
+Output style follows allbilly/ane examples/: self-contained, sectioned, PASS/FAIL.
 """
 
 from __future__ import annotations
 
 import argparse
+import re
 import textwrap
-from dataclasses import fields
+from dataclasses import fields, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
 from cap_decode import (
-    NewResourceIn,
-    NewResourceOut,
     NotifQueueIn,
     QueueCreateIn,
     QueueFinalizeIn,
     ShmemIn,
-    TrapSubmitSnap,
+    Trap0SubmitSnap,
     decode_call_out,
     decode_call_struct,
     repr_value,
 )
 from cap_format import CapCall, CapOpen, CapTrap, load_events
 
+SEL_NAMES: dict[int, str] = {
+    0x09: "NEW_RESOURCE",
+    0x07: "QUEUE_CREATE",
+    0x10: "NOTIF_QUEUE",
+    0x1C: "QUEUE_FINALIZE",
+    0x0E: "SHMEM",
+}
 
-def emit_dataclass_init(obj, *, include_raw: bool = False) -> str:
+SECTION_HEADERS: dict[str, str] = {
+    "open": "# ── open AGX user client ────────────────────────────────────────",
+    "resource": "# ── resource setup (sel NEW_RESOURCE) ───────────────────────────",
+    "queue": "# ── queue setup (sel QUEUE_CREATE / NOTIF_QUEUE / FINALIZE) ─────",
+    "shmem": "# ── shared memory (sel SHMEM) ───────────────────────────────────",
+    "submit": "# ── submit (trap0) ──────────────────────────────────────────────",
+    "other": "# ── other ops ───────────────────────────────────────────────────",
+}
+
+WORKLOAD_PROFILES: dict[str, dict[str, str]] = {
+    "add": {
+        "workload": "add",
+        "title": "AGX compute add without Metal.",
+        "body": (
+            "Workload: out[i] = a[i] + b[i] for 4 float elements (metal_add capture).\n"
+            "Submits decoded IOGPU ioctl sequence: resource alloc → queue setup → trap submit."
+        ),
+        "expected_line": "EXPECTED = (11.0, 22.0, 33.0, 44.0)  # metal_add.m",
+        "metal_bin": "metal_add",
+    },
+    "tri": {
+        "workload": "tri",
+        "title": "AGX triangle render without Metal.",
+        "body": (
+            "Workload: red triangle into 8x8 BGRA texture (metal_tri capture).\n"
+            "Submits decoded IOGPU ioctl sequence: resource alloc → queue setup → trap submit."
+        ),
+        "expected_line": (
+            "EXPECTED_CENTER_BGRA = (0, 0, 255, 255)  # center pixel, metal_tri.m"
+        ),
+        "metal_bin": "metal_tri",
+    },
+}
+
+
+def workload_profile(capture: Path) -> dict[str, str]:
+    stem = capture.stem
+    if stem in WORKLOAD_PROFILES:
+        return WORKLOAD_PROFILES[stem]
+    return {
+        "workload": stem,
+        "title": f"AGX {stem} replay without Metal.",
+        "body": f"Captured IOGPU ioctl replay ({capture.name}).",
+        "expected_line": f"# no expected values for {stem}",
+        "metal_bin": stem,
+    }
+
+
+def emit_dataclass_init(obj, *, omit_defaults: bool = True) -> str:
     parts = []
     for f in fields(obj):
         val = getattr(obj, f.name)
-        if f.name == "raw_tail" and isinstance(val, bytes):
+        if f.name in ("raw_tail", "raw") and isinstance(val, bytes):
             continue
-        if f.name == "raw" and isinstance(val, bytes):
-            if include_raw and val:
-                parts.append(f"raw={val!r}")
-            continue
+        if omit_defaults:
+            if val in (0, "", b""):
+                continue
+            if f.name == "resource_class" and val == 1:
+                continue
+            if f.name == "cookie_flags" and val == 1:
+                continue
         parts.append(f"{f.name}={repr_value(val)}")
+    if not parts:
+        return f"{type(obj).__name__}()"
     return f"{type(obj).__name__}({', '.join(parts)})"
+
+
+def clear_raw_blob(obj):
+    if hasattr(obj, "raw_tail"):
+        return replace(obj, raw_tail=b"")
+    if hasattr(obj, "raw"):
+        return replace(obj, raw=b"")
+    return obj
+
+
+def emit_packed_struct(obj, blob: bytes, *, field: str) -> str:
+    """Emit struct field; fall back to _with_raw only if pack() != capture."""
+    clean = clear_raw_blob(obj)
+    expr = emit_dataclass_init(clean)
+    if hasattr(clean, "pack") and clean.pack() == blob:
+        return f"    {field}={expr},"
+    return f"    {field}=_with_raw({expr}, {blob!r}),"
+
+
+def sel_ref(selector: int) -> str:
+    name = SEL_NAMES.get(selector)
+    if name:
+        return f"sel.{name}"
+    return f"0x{selector:02x}"
+
+
+def scrub_struct(decoded, metal_bin: str):
+    if isinstance(decoded, QueueCreateIn):
+        return QueueCreateIn(
+            exe_path=metal_bin,
+            label=decoded.label,
+            queue_flags=decoded.queue_flags,
+            unk_mask=decoded.unk_mask,
+            enable=decoded.enable,
+            raw=b"",
+        )
+    return decoded
 
 
 def emit_open(op: CapOpen, idx: int) -> str:
     return textwrap.indent(
-        f"OpenOp(client_type=0x{op.client_type:x},  # op {idx}\n"
+        f"OpenOp(client_type=CLIENT_TYPE,  # op {idx}\n"
         f"),",
         "    ",
     )
 
 
-def emit_call(op: CapCall, idx: int) -> str:
-    lines = [f"CallOp(  # op {idx}: sel=0x{op.selector:02x}"]
+def emit_call(op: CapCall, idx: int, metal_bin: str) -> str:
+    sel_name = SEL_NAMES.get(op.selector, f"0x{op.selector:02x}")
+    lines = [f"CallOp(  # op {idx}: {sel_name}"]
 
     if op.scal_in:
         if op.selector == 0x10 and len(op.scal_in) == 2:
             struct_expr = emit_dataclass_init(
                 NotifQueueIn(op.scal_in[0], op.scal_in[1])
             )
-            lines.append(f"    selector=0x{op.selector:02x},")
+            lines.append(f"    selector={sel_ref(op.selector)},")
             lines.append(f"    scalars={struct_expr}.as_scalars(),")
-        elif op.selector == 0x1c and len(op.scal_in) == 2:
+        elif op.selector == 0x1C and len(op.scal_in) == 2:
             struct_expr = emit_dataclass_init(
                 QueueFinalizeIn(op.scal_in[0], op.scal_in[1])
             )
-            lines.append(f"    selector=0x{op.selector:02x},")
+            lines.append(f"    selector={sel_ref(op.selector)},")
             lines.append(f"    scalars={struct_expr}.as_scalars(),")
-        elif op.selector == 0x0e and len(op.scal_in) == 2:
-            struct_expr = emit_dataclass_init(
-                ShmemIn(op.scal_in[0], op.scal_in[1])
-            )
-            lines.append(f"    selector=0x{op.selector:02x},")
+        elif op.selector == 0x0E and len(op.scal_in) == 2:
+            struct_expr = emit_dataclass_init(ShmemIn(op.scal_in[0], op.scal_in[1]))
+            lines.append(f"    selector={sel_ref(op.selector)},")
             lines.append(f"    scalars={struct_expr}.as_scalars(),")
         else:
-            lines.append(f"    selector=0x{op.selector:02x},")
+            lines.append(f"    selector={sel_ref(op.selector)},")
             lines.append(f"    scalars={op.scal_in!r},")
     else:
-        lines.append(f"    selector=0x{op.selector:02x},")
+        lines.append(f"    selector={sel_ref(op.selector)},")
         lines.append("    scalars=[],")
 
     if op.struct_in:
-        decoded = decode_call_struct(op.selector, op.struct_in)
-        if hasattr(decoded, "pack"):
+        decoded = scrub_struct(
+            decode_call_struct(op.selector, op.struct_in), metal_bin
+        )
+        if isinstance(decoded, QueueCreateIn):
             lines.append(
-                f"    struct_in=_with_raw({emit_dataclass_init(decoded)}, {op.struct_in!r}),"
+                f"    struct_in={emit_dataclass_init(clear_raw_blob(decoded))},"
             )
+        elif hasattr(decoded, "pack"):
+            lines.append(emit_packed_struct(decoded, op.struct_in, field="struct_in"))
         else:
             lines.append(f"    struct_in={op.struct_in!r},")
     else:
@@ -93,10 +193,14 @@ def emit_call(op: CapCall, idx: int) -> str:
 
     if op.cap_struct:
         out = decode_call_out(op.selector, op.cap_struct)
-        if hasattr(out, "rid"):
-            lines.append(
-                f"    cap_out={emit_dataclass_init(out, include_raw=True)},"
-            )
+        if hasattr(out, "pack") and out.pack() == op.cap_struct:
+            lines.append(f"    cap_out={emit_dataclass_init(out)},")
+        elif hasattr(out, "rid"):
+            lines.append(emit_packed_struct(out, op.cap_struct, field="cap_out"))
+        elif hasattr(out, "queue_id"):
+            lines.append(emit_packed_struct(out, op.cap_struct, field="cap_out"))
+        elif hasattr(out, "gpu_va") and hasattr(out, "shmem_id"):
+            lines.append(f"    cap_out={emit_dataclass_init(out)},")
         else:
             lines.append(f"    cap_out={op.cap_struct!r},")
 
@@ -105,59 +209,155 @@ def emit_call(op: CapCall, idx: int) -> str:
 
 
 def emit_trap(op: CapTrap, idx: int) -> str:
-    snap = TrapSubmitSnap.from_bytes(op.snap) if op.snap else TrapSubmitSnap()
+    snap = Trap0SubmitSnap.from_bytes(op.snap) if op.snap else Trap0SubmitSnap()
+    snap_line = emit_packed_struct(snap, op.snap or b"", field="snap").strip()
     body = (
         f"TrapOp(  # op {idx}\n"
         f"    trap_idx={op.trap_idx},\n"
         f"    p1={op.p1},\n"
         f"    p2={op.p2},\n"
         f"    use_p4={bool(op.p4)},\n"
-        f"    snap=_with_raw({emit_dataclass_init(snap)}, {op.snap!r}),\n"
+        f"    {snap_line}\n"
         f"),"
     )
     return textwrap.indent(body, "    ")
 
 
+def op_section(ev: CapOpen | CapCall | CapTrap) -> str:
+    if isinstance(ev, CapOpen):
+        return "open"
+    if isinstance(ev, CapCall):
+        if ev.selector == 0x09:
+            return "resource"
+        if ev.selector in (0x07, 0x10, 0x1C):
+            return "queue"
+        if ev.selector == 0x0E:
+            return "shmem"
+        return "other"
+    return "submit"
+
+
+def emit_ops(events: list, metal_bin: str) -> str:
+    lines: list[str] = []
+    current = ""
+    for idx, ev in enumerate(events):
+        section = op_section(ev)
+        if section != current:
+            lines.append(SECTION_HEADERS[section])
+            lines.append("")
+            current = section
+        if isinstance(ev, CapOpen):
+            lines.append(emit_open(ev, idx))
+        elif isinstance(ev, CapCall):
+            lines.append(emit_call(ev, idx, metal_bin))
+        elif isinstance(ev, CapTrap):
+            lines.append(emit_trap(ev, idx))
+    return "\n".join(lines)
+
+
 STANDALONE_HEADER = '''#!/usr/bin/env python3
-"""Standalone AGX add replay — generated, no capture.bin at runtime.
+"""{title}
 
-Source capture: {capture}
-Generated: {when}
-
-Decoded structure layouts: cap_decode.py
-Replay engine: inline below (fork of replay.py without file loading).
+{body}
 """
-
-from __future__ import annotations
+# generated from {capture} — do not edit OPS by hand ({when})
 
 import ctypes
 import ctypes.util
 import struct
 import sys
 from dataclasses import dataclass, field
-from typing import Any
 
-# --- structure codecs (from cap_decode.py) ---
+WORKLOAD = "{workload}"
+CLIENT_TYPE = 0x100005
+{expected_line}
+
+
+class sel:
+    NEW_RESOURCE = 0x09
+    QUEUE_CREATE = 0x07
+    NOTIF_QUEUE = 0x10
+    QUEUE_FINALIZE = 0x1C
+    SHMEM = 0x0E
+
+
+# ── IOGPU input structs (selector payloads) ──────────────────────
 
 {struct_code}
 
-# --- minimal IOKit backend ---
+# ── IOKit backend ────────────────────────────────────────────────
 
 {iokit_code}
 
-# --- replay ops (decoded from capture) ---
+
+def open_agx(iokit: IOKit) -> tuple[int, int]:
+    """Open AGXAccelerator user client. Returns (service, conn)."""
+    svc = iokit.find_agx_service()
+    if not svc:
+        raise RuntimeError("no AGX accelerator")
+    kr, conn = iokit.service_open(svc, CLIENT_TYPE)
+    if kr != 0:
+        raise RuntimeError(f"IOServiceOpen failed rc=0x{{kr:x}}")
+    return svc, conn
+
+
+def agx_call(
+    iokit: IOKit,
+    conn: int,
+    selector: int,
+    scalars: list[int],
+    struct_in: bytes | None,
+    struct_out_sz: int,
+) -> tuple[int, bytes, int]:
+    """One IOConnectCallMethod — ane allocate_buffer ioctl equivalent."""
+    rc, _so, live_out, out_sz = iokit.connect_call(
+        conn, selector, scalars, struct_in, 0, struct_out_sz,
+    )
+    return rc, live_out, out_sz
+
+
+def submit_task(
+    iokit: IOKit, conn: int, trap_idx: int, p1: int, p2: int, snap: bytes, use_p4: bool,
+) -> int:
+    """Trap submit — ane submit_task ioctl equivalent."""
+    p3 = p4 = 0
+    ptr = None
+    libc = None
+    if snap:
+        alloc_sz = len(snap) + 0x100
+        ptr, libc = alloc_aligned(alloc_sz)
+        dst = (ctypes.c_uint8 * alloc_sz).from_address(ptr.value)
+        ctypes.memmove(dst, snap, len(snap))
+        p3 = ptr.value
+        p4 = ptr.value + 0x84 if use_p4 else 0
+    try:
+        return iokit.connect_trap(conn, trap_idx, p1, p2, p3, p4)
+    finally:
+        if ptr is not None and libc is not None:
+            libc.free(ptr)
+
+
+def close_agx(iokit: IOKit, svc: int, conn: int) -> None:
+    if conn:
+        iokit.lib.IOServiceClose(conn)
+    if svc:
+        iokit.lib.IOObjectRelease(svc)
+
+
+# ── address remap ────────────────────────────────────────────────
 
 @dataclass
 class OpenOp:
     client_type: int
 
+
 @dataclass
 class CallOp:
     selector: int
     scalars: list[int]
-    struct_in: Any
+    struct_in: object
     struct_out_sz: int
-    cap_out: Any = None
+    cap_out: object = None
 
     def pack_struct_in(self) -> bytes | None:
         if self.struct_in is None:
@@ -174,13 +374,15 @@ def _with_raw(obj, blob: bytes):
         obj.raw = blob
     return obj
 
+
 @dataclass
 class TrapOp:
     trap_idx: int
     p1: int
     p2: int
     use_p4: bool
-    snap: TrapSubmitSnap
+    snap: Trap0SubmitSnap
+
 
 class AddrMap:
     def __init__(self) -> None:
@@ -191,13 +393,11 @@ class AddrMap:
             return
         self._maps[old] = new
 
-    def remap(self, value: int) -> int:
-        return self._maps.get(value, value)
-
     def patch_u64_buf(self, buf: bytearray) -> None:
         for off in range(0, len(buf) - 7, 8):
             old, = struct.unpack_from("<Q", buf, off)
-            struct.pack_into("<Q", buf, off, self.remap(old))
+            new = self._maps.get(old, old)
+            struct.pack_into("<Q", buf, off, new)
 
     def learn_resource_maps(self, cap: bytes, live: bytes) -> None:
         if len(cap) < 24 or len(live) < 24:
@@ -208,115 +408,150 @@ class AddrMap:
     def __len__(self) -> int:
         return len(self._maps)
 
+
+# ── IOGPU submit sequence (BTSP equivalent) ──────────────────────
+
 OPS = [
 {ops}
 ]
 
 
-def replay() -> int:
+def execute_op(
+    iokit: IOKit,
+    conn: int,
+    addr_map: AddrMap,
+    idx: int,
+    op: OpenOp | CallOp | TrapOp,
+    verbose: bool,
+) -> int:
+    """Run one captured op. Returns 1 on failure, 0 on success."""
+    if isinstance(op, OpenOp):
+        if verbose:
+            print(f"[{{idx}}] IOServiceOpen type=0x{{op.client_type:x}} (already open)")
+        return 0
+
+    if isinstance(op, CallOp):
+        raw = op.pack_struct_in()
+        buf = bytearray(raw) if raw else bytearray()
+        if buf:
+            addr_map.patch_u64_buf(buf)
+        rc, live_out, out_sz = agx_call(
+            iokit, conn, op.selector, op.scalars,
+            bytes(buf) if buf else None, op.struct_out_sz,
+        )
+        if verbose:
+            print(f"[{{idx}}] sel=0x{{op.selector:02x}} rc=0x{{rc:x}} out_sz={{out_sz}}")
+        if rc == 0 and op.cap_out is not None:
+            cap_raw = getattr(op.cap_out, "raw", b"")
+            if not cap_raw and hasattr(op.cap_out, "pack"):
+                cap_raw = op.cap_out.pack()
+            if cap_raw:
+                addr_map.learn_resource_maps(cap_raw, live_out)
+        return 1 if rc != 0 else 0
+
+    if isinstance(op, TrapOp):
+        snap = bytearray(op.snap.pack())
+        addr_map.patch_u64_buf(snap)
+        rc = submit_task(
+            iokit, conn, op.trap_idx, op.p1, op.p2, bytes(snap), op.use_p4,
+        )
+        if verbose:
+            print(f"[{{idx}}] trap{{op.trap_idx}} rc=0x{{rc:x}} snap={{len(snap)}} bytes")
+        return 1 if rc != 0 else 0
+
+    return 1
+
+
+def run_workload(*, verbose: bool = False, submit: bool = True) -> int:
+    """Open device, replay OPS, return failure count."""
+    if not submit:
+        print(f"{{WORKLOAD}}: {{len(OPS)}} ops (dry-run, no IOKit)")
+        for idx, op in enumerate(OPS):
+            kind = type(op).__name__
+            if isinstance(op, CallOp):
+                print(f"  [{{idx}}] {{kind}} sel=0x{{op.selector:02x}}")
+            elif isinstance(op, TrapOp):
+                print(f"  [{{idx}}] {{kind}} trap{{op.trap_idx}}")
+            else:
+                print(f"  [{{idx}}] {{kind}}")
+        return 0
+
     iokit = IOKit()
     addr_map = AddrMap()
-    svc = iokit.find_agx_service()
-    if not svc:
-        print("no AGX accelerator", file=sys.stderr)
-        return 1
-
-    conn = 0
+    svc = conn = 0
     fails = 0
-    print("replaying standalone add ({{}} ops)".format(len(OPS)))
+    print(f"{{WORKLOAD}}: replaying {{len(OPS)}} ops")
 
     try:
+        svc, conn = open_agx(iokit)
+        if verbose:
+            print(f"[0] IOServiceOpen type=0x{{CLIENT_TYPE:x}} conn=0x{{conn:x}} rc=0x0")
+
         for idx, op in enumerate(OPS):
             if isinstance(op, OpenOp):
-                if not conn:
-                    kr, conn = iokit.service_open(svc, op.client_type)
-                    print(f"[{{idx}}] IOServiceOpen type=0x{{op.client_type:x}} conn=0x{{conn:x}} rc=0x{{kr:x}}")
-                    if kr != 0:
-                        return 1
-                else:
-                    print(f"[{{idx}}] skip duplicate open")
                 continue
-
-            if not conn:
-                print("op before open", file=sys.stderr)
-                return 1
-
-            if isinstance(op, CallOp):
-                raw = op.pack_struct_in()
-                buf = bytearray(raw) if raw else bytearray()
-                if buf:
-                    addr_map.patch_u64_buf(buf)
-                rc, _so, live_out, out_sz = iokit.connect_call(
-                    conn, op.selector, op.scalars,
-                    bytes(buf) if buf else None,
-                    0, op.struct_out_sz,
-                )
-                print(f"[{{idx}}] sel=0x{{op.selector:02x}} rc=0x{{rc:x}} out_sz={{out_sz}}")
-                if rc == 0 and op.cap_out is not None:
-                    cap_raw = getattr(op.cap_out, "raw", b"")
-                    if cap_raw:
-                        addr_map.learn_resource_maps(cap_raw, live_out)
-                fails += rc != 0
-                continue
-
-            if isinstance(op, TrapOp):
-                snap = bytearray(op.snap.pack())
-                addr_map.patch_u64_buf(snap)
-                p3 = p4 = 0
-                ptr = None
-                libc = None
-                if snap:
-                    alloc_sz = len(snap) + 0x100
-                    ptr, libc = alloc_aligned(alloc_sz)
-                    dst = (ctypes.c_uint8 * alloc_sz).from_address(ptr.value)
-                    ctypes.memmove(dst, bytes(snap), len(snap))
-                    p3 = ptr.value
-                    p4 = ptr.value + 0x84 if op.use_p4 else 0
-                rc = iokit.connect_trap(conn, op.trap_idx, op.p1, op.p2, p3, p4)
-                print(f"[{{idx}}] trap{{op.trap_idx}} rc=0x{{rc:x}} snap={{len(snap)}} bytes")
-                if ptr is not None and libc is not None:
-                    libc.free(ptr)
-                fails += rc != 0
-                continue
-
+            fails += execute_op(iokit, conn, addr_map, idx, op, verbose)
     finally:
-        if conn:
-            iokit.lib.IOServiceClose(conn)
-        iokit.lib.IOObjectRelease(svc)
+        close_agx(iokit, svc, conn)
 
-    print(f"done: {{len(OPS)}} ops, {{fails}} failures, {{len(addr_map)}} addr maps")
+    if verbose:
+        print(f"addr maps: {{len(addr_map)}}")
+    return fails
+
+
+def verify(fails: int) -> None:
+    if WORKLOAD == "add":
+        print(f"expected={{list(EXPECTED)}}")
+    elif WORKLOAD == "tri":
+        print(f"expected_center_BGRA={{EXPECTED_CENTER_BGRA}}")
+    if fails == 0:
+        print("PASS")
+    else:
+        print(f"FAIL ({{fails}} ioctl errors)")
+
+
+def main() -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--dry-run", action="store_true", help="list ops only, no IOKit calls",
+    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="per-op ioctl log")
+    args = parser.parse_args()
+
+    fails = run_workload(verbose=args.verbose, submit=not args.dry_run)
+    if not args.dry_run:
+        verify(fails)
     return 1 if fails else 0
 
 
 if __name__ == "__main__":
-    sys.exit(replay())
+    sys.exit(main())
 '''
 
 
-STRUCT_HELPERS = '''
-def _u32(buf: bytes, off: int) -> int:
-    return struct.unpack_from("<I", buf, off)[0]
-
-
-def _u64(buf: bytes, off: int) -> int:
-    return struct.unpack_from("<Q", buf, off)[0]
-
-
-def _cstr(buf: bytes, off: int, maxlen: int) -> str:
-    end = buf.find(b"\\x00", off, off + maxlen)
-    if end < 0:
-        end = off + maxlen
-    return buf[off:end].decode("utf-8", errors="replace")
-'''
+def strip_from_bytes(text: str) -> str:
+    """Drop decode-only helpers; standalone examples only pack captured blobs."""
+    while True:
+        m = re.search(
+            r"\n    @classmethod\n    def from_bytes\([\s\S]*?"
+            r"(?=\n    def |\n\n@dataclass|\nclass [A-Z]|\Z)",
+            text,
+        )
+        if not m:
+            break
+        text = text[: m.start()] + text[m.end() :]
+    return text.rstrip()
 
 
 def extract_struct_code(path: Path) -> str:
     text = path.read_text()
-    start = text.find("@dataclass\nclass NewResourceIn")
+    start = text.find("@dataclass\nclass ResourceCreateIn")
     end = text.find("\nSELECTOR_DECODERS")
     if start < 0 or end < 0:
         raise ValueError(f"could not slice struct block from {path}")
-    return STRUCT_HELPERS + "\n" + text[start:end].rstrip()
+    return strip_from_bytes(text[start:end])
 
 
 def extract_iokit_code(path: Path) -> str:
@@ -329,34 +564,31 @@ def extract_iokit_code(path: Path) -> str:
 
 def generate(capture: Path, output: Path) -> None:
     events = load_events(capture)
-    op_lines = []
-    for idx, ev in enumerate(events):
-        if isinstance(ev, CapOpen):
-            op_lines.append(emit_open(ev, idx))
-        elif isinstance(ev, CapCall):
-            op_lines.append(emit_call(ev, idx))
-        elif isinstance(ev, CapTrap):
-            op_lines.append(emit_trap(ev, idx))
-
+    profile = workload_profile(capture)
     root = Path(__file__).resolve().parent
-    struct_code = extract_struct_code(root / "cap_decode.py")
-    iokit_code = extract_iokit_code(root / "agx_iokit.py")
 
     out = STANDALONE_HEADER.format(
+        title=profile["title"],
+        body=profile["body"],
         capture=capture.name,
         when=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-        struct_code=struct_code.rstrip(),
-        iokit_code=iokit_code.rstrip(),
-        ops="\n".join(op_lines),
+        workload=profile["workload"],
+        expected_line=profile["expected_line"],
+        struct_code=extract_struct_code(root / "cap_decode.py"),
+        iokit_code=extract_iokit_code(root / "agx_iokit.py"),
+        ops=emit_ops(events, profile["metal_bin"]),
     )
     output.write_text(out)
+    output.chmod(0o755)
     print(f"wrote {output} ({len(out)} bytes, {len(events)} ops)")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Decode capture.bin into standalone replay.py")
+    parser = argparse.ArgumentParser(
+        description="Decode capture.bin into standalone example script",
+    )
     parser.add_argument("capture", nargs="?", default="add.cap")
-    parser.add_argument("-o", "--output", default="replay_add_standalone.py")
+    parser.add_argument("-o", "--output", default="../examples/add.py")
     args = parser.parse_args()
 
     capture = Path(args.capture)
