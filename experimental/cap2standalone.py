@@ -51,7 +51,9 @@ WORKLOAD_PROFILES: dict[str, dict[str, str]] = {
             "Workload: out[i] = a[i] + b[i] for 4 float elements (metal_add capture).\n"
             "Submits decoded IOGPU ioctl sequence: resource alloc → queue setup → trap submit."
         ),
-        "expected_line": "EXPECTED = (11.0, 22.0, 33.0, 44.0)  # metal_add.m",
+        "expected_name": "EXPECTED",
+        "expected_value": "(11.0, 22.0, 33.0, 44.0)",
+        "expected_comment": "metal_add.m",
         "metal_bin": "metal_add",
     },
     "mul": {
@@ -61,7 +63,9 @@ WORKLOAD_PROFILES: dict[str, dict[str, str]] = {
             "Workload: out[i] = a[i] * b[i] for 4 float elements (metal_mul capture).\n"
             "Submits decoded IOGPU ioctl sequence: resource alloc → queue setup → trap submit."
         ),
-        "expected_line": "EXPECTED = (10.0, 40.0, 90.0, 160.0)  # metal_mul.m",
+        "expected_name": "EXPECTED",
+        "expected_value": "(10.0, 40.0, 90.0, 160.0)",
+        "expected_comment": "metal_mul.m",
         "metal_bin": "metal_mul",
     },
     "tri": {
@@ -71,13 +75,12 @@ WORKLOAD_PROFILES: dict[str, dict[str, str]] = {
             "Workload: red triangle into 8x8 BGRA texture (metal_tri capture).\n"
             "Submits decoded IOGPU ioctl sequence: resource alloc → queue setup → trap submit."
         ),
-        "expected_line": (
-            "EXPECTED_CENTER_BGRA = (0, 0, 255, 255)  # center pixel, metal_tri.m"
-        ),
+        "expected_name": "EXPECTED_CENTER_BGRA",
+        "expected_value": "(0, 0, 255, 255)",
+        "expected_comment": "center pixel, metal_tri.m",
         "metal_bin": "metal_tri",
     },
 }
-
 
 def workload_profile(capture: Path) -> dict[str, str]:
     stem = capture.stem
@@ -87,7 +90,9 @@ def workload_profile(capture: Path) -> dict[str, str]:
         "workload": stem,
         "title": f"AGX {stem} replay without Metal.",
         "body": f"Captured IOGPU ioctl replay ({capture.name}).",
-        "expected_line": f"# no expected values for {stem}",
+        "expected_name": "EXPECTED",
+        "expected_value": f"# no expected values for {stem}",
+        "expected_comment": "",
         "metal_bin": stem,
     }
 
@@ -151,12 +156,10 @@ def scrub_struct(decoded, metal_bin: str):
     return decoded
 
 
+# CapOpen events are skipped at the OPS level (open_agx() opens the service
+# for real; emitting a no-op marker wastes a line and a class for nothing).
 def emit_open(op: CapOpen, idx: int) -> str:
-    return textwrap.indent(
-        f"OpenOp(client_type=CLIENT_TYPE,  # op {idx}\n"
-        f"),",
-        "    ",
-    )
+    return ""
 
 
 def emit_call(op: CapCall, idx: int, metal_bin: str) -> str:
@@ -236,9 +239,7 @@ def emit_trap(op: CapTrap, idx: int) -> str:
     return textwrap.indent(body, "    ")
 
 
-def op_section(ev: CapOpen | CapCall | CapTrap) -> str:
-    if isinstance(ev, CapOpen):
-        return "open"
+def op_section(ev: CapCall | CapTrap) -> str:
     if isinstance(ev, CapCall):
         if ev.selector == 0x09:
             return "resource"
@@ -254,16 +255,16 @@ def emit_ops(events: list, metal_bin: str) -> str:
     lines: list[str] = []
     current = ""
     for idx, ev in enumerate(events):
+        if isinstance(ev, CapOpen):
+            continue
         section = op_section(ev)
         if section != current:
             lines.append(SECTION_HEADERS[section])
             lines.append("")
             current = section
-        if isinstance(ev, CapOpen):
-            lines.append(emit_open(ev, idx))
-        elif isinstance(ev, CapCall):
+        if isinstance(ev, CapCall):
             lines.append(emit_call(ev, idx, metal_bin))
-        elif isinstance(ev, CapTrap):
+        else:
             lines.append(emit_trap(ev, idx))
     return "\n".join(lines)
 
@@ -283,8 +284,7 @@ from dataclasses import dataclass, field
 
 WORKLOAD = "{workload}"
 CLIENT_TYPE = 0x100005
-{expected_line}
-
+{expected_name} = {expected_value}  # {expected_comment}
 
 class sel:
     NEW_RESOURCE = 0x09
@@ -314,19 +314,8 @@ def open_agx(iokit: IOKit) -> tuple[int, int]:
     return svc, conn
 
 
-def agx_call(
-    iokit: IOKit,
-    conn: int,
-    selector: int,
-    scalars: list[int],
-    struct_in: bytes | None,
-    struct_out_sz: int,
-) -> tuple[int, bytes, int]:
-    """One IOConnectCallMethod — ane allocate_buffer ioctl equivalent."""
-    rc, _so, live_out, out_sz = iokit.connect_call(
-        conn, selector, scalars, struct_in, 0, struct_out_sz,
-    )
-    return rc, live_out, out_sz
+# ponytail: agx_call dropped — it was a 1-call wrapper that threw away
+# a return value; inlined into execute_op below.
 
 
 def submit_task(
@@ -359,11 +348,8 @@ def close_agx(iokit: IOKit, svc: int, conn: int) -> None:
 
 # ── address remap ────────────────────────────────────────────────
 
-@dataclass
-class OpenOp:
-    client_type: int
-
-
+# ponytail: OpenOp dropped — the captured open is replayed by open_agx(),
+# so the no-op marker only existed to keep the OP list round-numbered.
 @dataclass
 class CallOp:
     selector: int
@@ -426,23 +412,18 @@ def execute_op(
     conn: int,
     addr_map: AddrMap,
     idx: int,
-    op: OpenOp | CallOp | TrapOp,
+    op: CallOp | TrapOp,
     verbose: bool,
 ) -> int:
     """Run one captured op. Returns 1 on failure, 0 on success."""
-    if isinstance(op, OpenOp):
-        if verbose:
-            print(f"[{{idx}}] IOServiceOpen type=0x{{op.client_type:x}} (already open)")
-        return 0
-
     if isinstance(op, CallOp):
         raw = op.pack_struct_in()
         buf = bytearray(raw) if raw else bytearray()
         if buf:
             addr_map.patch_u64_buf(buf)
-        rc, live_out, out_sz = agx_call(
-            iokit, conn, op.selector, op.scalars,
-            bytes(buf) if buf else None, op.struct_out_sz,
+        rc, _so, live_out, out_sz = iokit.connect_call(
+            conn, op.selector, op.scalars,
+            bytes(buf) if buf else None, 0, op.struct_out_sz,
         )
         if verbose:
             print(f"[{{idx}}] sel=0x{{op.selector:02x}} rc=0x{{rc:x}} out_sz={{out_sz}}")
@@ -454,17 +435,15 @@ def execute_op(
                 addr_map.learn_resource_maps(cap_raw, live_out)
         return 1 if rc != 0 else 0
 
-    if isinstance(op, TrapOp):
-        snap = bytearray(op.snap.pack())
-        addr_map.patch_u64_buf(snap)
-        rc = submit_task(
-            iokit, conn, op.trap_idx, op.p1, op.p2, bytes(snap), op.use_p4,
-        )
-        if verbose:
-            print(f"[{{idx}}] trap{{op.trap_idx}} rc=0x{{rc:x}} snap={{len(snap)}} bytes")
-        return 1 if rc != 0 else 0
-
-    return 1
+    # TrapOp
+    snap = bytearray(op.snap.pack())
+    addr_map.patch_u64_buf(snap)
+    rc = submit_task(
+        iokit, conn, op.trap_idx, op.p1, op.p2, bytes(snap), op.use_p4,
+    )
+    if verbose:
+        print(f"[{{idx}}] trap{{op.trap_idx}} rc=0x{{rc:x}} snap={{len(snap)}} bytes")
+    return 1 if rc != 0 else 0
 
 
 def run_workload(*, verbose: bool = False, submit: bool = True) -> int:
@@ -472,13 +451,10 @@ def run_workload(*, verbose: bool = False, submit: bool = True) -> int:
     if not submit:
         print(f"{{WORKLOAD}}: {{len(OPS)}} ops (dry-run, no IOKit)")
         for idx, op in enumerate(OPS):
-            kind = type(op).__name__
             if isinstance(op, CallOp):
-                print(f"  [{{idx}}] {{kind}} sel=0x{{op.selector:02x}}")
-            elif isinstance(op, TrapOp):
-                print(f"  [{{idx}}] {{kind}} trap{{op.trap_idx}}")
+                print(f"  [{{idx}}] CallOp sel=0x{{op.selector:02x}}")
             else:
-                print(f"  [{{idx}}] {{kind}}")
+                print(f"  [{{idx}}] TrapOp trap{{op.trap_idx}}")
         return 0
 
     iokit = IOKit()
@@ -493,8 +469,6 @@ def run_workload(*, verbose: bool = False, submit: bool = True) -> int:
             print(f"[0] IOServiceOpen type=0x{{CLIENT_TYPE:x}} conn=0x{{conn:x}} rc=0x0")
 
         for idx, op in enumerate(OPS):
-            if isinstance(op, OpenOp):
-                continue
             fails += execute_op(iokit, conn, addr_map, idx, op, verbose)
     finally:
         close_agx(iokit, svc, conn)
@@ -505,10 +479,7 @@ def run_workload(*, verbose: bool = False, submit: bool = True) -> int:
 
 
 def verify(fails: int) -> None:
-    if WORKLOAD in ("add", "mul"):
-        print(f"expected={{list(EXPECTED)}}")
-    elif WORKLOAD == "tri":
-        print(f"expected_center_BGRA={{EXPECTED_CENTER_BGRA}}")
+    print(f"expected={{list({expected_name})}}")
     if fails == 0:
         print("PASS")
     else:
@@ -561,7 +532,7 @@ def extract_struct_code(path: Path) -> str:
 
 def extract_iokit_code(path: Path) -> str:
     text = path.read_text()
-    start = text.find("KERN_SUCCESS = 0")
+    start = text.find("AGX_NAMES = (")
     if start < 0:
         raise ValueError(f"could not slice IOKit block from {path}")
     return text[start:].rstrip()
@@ -578,7 +549,9 @@ def generate(capture: Path, output: Path) -> None:
         capture=capture.name,
         when=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         workload=profile["workload"],
-        expected_line=profile["expected_line"],
+        expected_name=profile["expected_name"],
+        expected_value=profile["expected_value"],
+        expected_comment=profile["expected_comment"],
         struct_code=extract_struct_code(root / "cap_decode.py"),
         iokit_code=extract_iokit_code(root / "agx_iokit.py"),
         ops=emit_ops(events, profile["metal_bin"]),
@@ -586,6 +559,8 @@ def generate(capture: Path, output: Path) -> None:
     output.write_text(out)
     output.chmod(0o755)
     print(f"wrote {output} ({len(out)} bytes, {len(events)} ops)")
+
+
 
 
 def main() -> None:

@@ -4,7 +4,7 @@
 Workload: out[i] = a[i] * b[i] for 4 float elements (metal_mul capture).
 Submits decoded IOGPU ioctl sequence: resource alloc → queue setup → trap submit.
 """
-# generated from mul.cap — do not edit OPS by hand (2026-06-26 07:30 UTC)
+# generated from mul.cap — do not edit OPS by hand (2026-06-27 10:24 UTC)
 
 import ctypes
 import ctypes.util
@@ -15,7 +15,6 @@ from dataclasses import dataclass, field
 WORKLOAD = "mul"
 CLIENT_TYPE = 0x100005
 EXPECTED = (10.0, 40.0, 90.0, 160.0)  # metal_mul.m
-
 
 class sel:
     NEW_RESOURCE = 0x09
@@ -199,15 +198,7 @@ class Trap0SubmitSnap:
         struct.pack_into("<Q", buf, 0x18, self.cmdbuf_aux_va)
         return bytes(buf)
 
-
-# Backward-compatible aliases (decode tooling).
-NewResourceIn = ResourceCreateIn
-NewResourceOut = ResourceCreateOut
-TrapSubmitSnap = Trap0SubmitSnap
-
 # ── IOKit backend ────────────────────────────────────────────────
-
-KERN_SUCCESS = 0
 
 AGX_NAMES = (
     "AGXAcceleratorG13G_B0",
@@ -368,19 +359,8 @@ def open_agx(iokit: IOKit) -> tuple[int, int]:
     return svc, conn
 
 
-def agx_call(
-    iokit: IOKit,
-    conn: int,
-    selector: int,
-    scalars: list[int],
-    struct_in: bytes | None,
-    struct_out_sz: int,
-) -> tuple[int, bytes, int]:
-    """One IOConnectCallMethod — ane allocate_buffer ioctl equivalent."""
-    rc, _so, live_out, out_sz = iokit.connect_call(
-        conn, selector, scalars, struct_in, 0, struct_out_sz,
-    )
-    return rc, live_out, out_sz
+# ponytail: agx_call dropped — it was a 1-call wrapper that threw away
+# a return value; inlined into execute_op below.
 
 
 def submit_task(
@@ -413,11 +393,8 @@ def close_agx(iokit: IOKit, svc: int, conn: int) -> None:
 
 # ── address remap ────────────────────────────────────────────────
 
-@dataclass
-class OpenOp:
-    client_type: int
-
-
+# ponytail: OpenOp dropped — the captured open is replayed by open_agx(),
+# so the no-op marker only existed to keep the OP list round-numbered.
 @dataclass
 class CallOp:
     selector: int
@@ -471,10 +448,6 @@ class AddrMap:
 # ── IOGPU submit sequence (BTSP equivalent) ──────────────────────
 
 OPS = [
-# ── open AGX user client ────────────────────────────────────────
-
-    OpenOp(client_type=CLIENT_TYPE,  # op 0
-    ),
 # ── resource setup (sel NEW_RESOURCE) ───────────────────────────
 
     CallOp(  # op 1: NEW_RESOURCE
@@ -711,23 +684,18 @@ def execute_op(
     conn: int,
     addr_map: AddrMap,
     idx: int,
-    op: OpenOp | CallOp | TrapOp,
+    op: CallOp | TrapOp,
     verbose: bool,
 ) -> int:
     """Run one captured op. Returns 1 on failure, 0 on success."""
-    if isinstance(op, OpenOp):
-        if verbose:
-            print(f"[{idx}] IOServiceOpen type=0x{op.client_type:x} (already open)")
-        return 0
-
     if isinstance(op, CallOp):
         raw = op.pack_struct_in()
         buf = bytearray(raw) if raw else bytearray()
         if buf:
             addr_map.patch_u64_buf(buf)
-        rc, live_out, out_sz = agx_call(
-            iokit, conn, op.selector, op.scalars,
-            bytes(buf) if buf else None, op.struct_out_sz,
+        rc, _so, live_out, out_sz = iokit.connect_call(
+            conn, op.selector, op.scalars,
+            bytes(buf) if buf else None, 0, op.struct_out_sz,
         )
         if verbose:
             print(f"[{idx}] sel=0x{op.selector:02x} rc=0x{rc:x} out_sz={out_sz}")
@@ -739,17 +707,15 @@ def execute_op(
                 addr_map.learn_resource_maps(cap_raw, live_out)
         return 1 if rc != 0 else 0
 
-    if isinstance(op, TrapOp):
-        snap = bytearray(op.snap.pack())
-        addr_map.patch_u64_buf(snap)
-        rc = submit_task(
-            iokit, conn, op.trap_idx, op.p1, op.p2, bytes(snap), op.use_p4,
-        )
-        if verbose:
-            print(f"[{idx}] trap{op.trap_idx} rc=0x{rc:x} snap={len(snap)} bytes")
-        return 1 if rc != 0 else 0
-
-    return 1
+    # TrapOp
+    snap = bytearray(op.snap.pack())
+    addr_map.patch_u64_buf(snap)
+    rc = submit_task(
+        iokit, conn, op.trap_idx, op.p1, op.p2, bytes(snap), op.use_p4,
+    )
+    if verbose:
+        print(f"[{idx}] trap{op.trap_idx} rc=0x{rc:x} snap={len(snap)} bytes")
+    return 1 if rc != 0 else 0
 
 
 def run_workload(*, verbose: bool = False, submit: bool = True) -> int:
@@ -757,13 +723,10 @@ def run_workload(*, verbose: bool = False, submit: bool = True) -> int:
     if not submit:
         print(f"{WORKLOAD}: {len(OPS)} ops (dry-run, no IOKit)")
         for idx, op in enumerate(OPS):
-            kind = type(op).__name__
             if isinstance(op, CallOp):
-                print(f"  [{idx}] {kind} sel=0x{op.selector:02x}")
-            elif isinstance(op, TrapOp):
-                print(f"  [{idx}] {kind} trap{op.trap_idx}")
+                print(f"  [{idx}] CallOp sel=0x{op.selector:02x}")
             else:
-                print(f"  [{idx}] {kind}")
+                print(f"  [{idx}] TrapOp trap{op.trap_idx}")
         return 0
 
     iokit = IOKit()
@@ -778,8 +741,6 @@ def run_workload(*, verbose: bool = False, submit: bool = True) -> int:
             print(f"[0] IOServiceOpen type=0x{CLIENT_TYPE:x} conn=0x{conn:x} rc=0x0")
 
         for idx, op in enumerate(OPS):
-            if isinstance(op, OpenOp):
-                continue
             fails += execute_op(iokit, conn, addr_map, idx, op, verbose)
     finally:
         close_agx(iokit, svc, conn)
@@ -790,10 +751,7 @@ def run_workload(*, verbose: bool = False, submit: bool = True) -> int:
 
 
 def verify(fails: int) -> None:
-    if WORKLOAD in ("add", "mul"):
-        print(f"expected={list(EXPECTED)}")
-    elif WORKLOAD == "tri":
-        print(f"expected_center_BGRA={EXPECTED_CENTER_BGRA}")
+    print(f"expected={list(EXPECTED)}")
     if fails == 0:
         print("PASS")
     else:

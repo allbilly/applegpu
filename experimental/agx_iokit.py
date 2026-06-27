@@ -5,8 +5,6 @@ from __future__ import annotations
 import ctypes
 import ctypes.util
 
-KERN_SUCCESS = 0
-
 AGX_NAMES = (
     "AGXAcceleratorG13G_B0",
     "AGXAcceleratorG13G",

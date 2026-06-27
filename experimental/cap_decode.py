@@ -266,11 +266,6 @@ class Trap0SubmitSnap:
         return bytes(buf)
 
 
-# Backward-compatible aliases (decode tooling).
-NewResourceIn = ResourceCreateIn
-NewResourceOut = ResourceCreateOut
-TrapSubmitSnap = Trap0SubmitSnap
-
 SELECTOR_DECODERS = {
     0x09: ("ResourceCreateIn", ResourceCreateIn),
     0x07: ("QueueCreateIn", QueueCreateIn),
