@@ -16,6 +16,7 @@ ask deepwiki on
 - TheTom/pascal-egpu
 - philipturner/metal-benchmarks
 - crispdark/asahi-gpu-top
+- imperatormk/metal-profiler
 
 - https://www.macinternals.app/en/blog/apple-gpu-command-pipeline
 - https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/21620
