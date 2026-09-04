@@ -198,6 +198,20 @@ class NotifQueueIn:
 
 
 @dataclass
+class NotifQueueOut:
+    ring_address: int = 0
+    queue_id: int = 0
+    reserved: int = 0
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> NotifQueueOut:
+        return cls(_u64(data, 0), _u32(data, 8), _u32(data, 12))
+
+    def pack(self) -> bytes:
+        return struct.pack("<QII", self.ring_address, self.queue_id, self.reserved)
+
+
+@dataclass
 class QueueFinalizeIn:
     arg0: int = 1
     arg1: int = 1
@@ -235,34 +249,38 @@ class ShmemOut:
 
 @dataclass
 class Trap0SubmitSnap:
-    """Trap0 fast-path submit buffer (64 bytes)."""
+    """Trap0 fast-path submit record (64 bytes).
 
-    buf_count: int = 0
+    Offsets 0x10 and 0x18 are userspace block pointers, not GPU VAs. The
+    capture stream stores and relocates the pointed-to 0x30-byte descriptors.
+    """
+
+    record_type: int = 0
     submit_flags: int = 0
     reserved: int = 0
-    cmdbuf_gpu_va: int = 0
-    cmdbuf_aux_va: int = 0
+    callback_0: int = 0
+    callback_1: int = 0
     raw: bytes = field(default_factory=bytes)
 
     @classmethod
     def from_bytes(cls, data: bytes) -> Trap0SubmitSnap:
         return cls(
-            buf_count=_u32(data, 0),
+            record_type=_u32(data, 0),
             submit_flags=_u32(data, 4),
             reserved=_u64(data, 8),
-            cmdbuf_gpu_va=_u64(data, 0x10),
-            cmdbuf_aux_va=_u64(data, 0x18),
+            callback_0=_u64(data, 0x10),
+            callback_1=_u64(data, 0x18),
         )
 
     def pack(self) -> bytes:
         if self.raw:
             return bytes(self.raw)
         buf = bytearray(64)
-        struct.pack_into("<I", buf, 0, self.buf_count)
+        struct.pack_into("<I", buf, 0, self.record_type)
         struct.pack_into("<I", buf, 4, self.submit_flags)
         struct.pack_into("<Q", buf, 8, self.reserved)
-        struct.pack_into("<Q", buf, 0x10, self.cmdbuf_gpu_va)
-        struct.pack_into("<Q", buf, 0x18, self.cmdbuf_aux_va)
+        struct.pack_into("<Q", buf, 0x10, self.callback_0)
+        struct.pack_into("<Q", buf, 0x18, self.callback_1)
         return bytes(buf)
 
 
@@ -275,7 +293,7 @@ SELECTOR_OUT_DECODERS = {
     0x09: ("ResourceCreateOut", ResourceCreateOut),
     0x07: ("QueueCreateOut", QueueCreateOut),
     0x0E: ("ShmemOut", ShmemOut),
-    0x10: ("ShmemOut", ShmemOut),
+    0x10: ("NotifQueueOut", NotifQueueOut),
 }
 
 

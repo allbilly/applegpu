@@ -5,6 +5,7 @@
 #import <Metal/Metal.h>
 #include <stdio.h>
 #include <string.h>
+#include "capture_helpers.h"
 
 static const char *kSource =
 	"#include <metal_stdlib>\n"
@@ -65,6 +66,7 @@ int main(int argc, char **argv)
 		[cb waitUntilCompleted];
 
 		memcpy(ho, bufo.contents, sizeof(ho));
+		agx_capture_expected(bufo.contents, sizeof(ho));
 		printf("result:");
 		for (NSUInteger i = 0; i < n; i++)
 			printf(" %.0f", ho[i]);

@@ -33,13 +33,13 @@ run-py: capture replay-py
 iokit_capture.dylib: iokit_capture.c
 	$(CC) $(CFLAGS) -dynamiclib $(FRAMEWORKS) -o $@ $<
 
-metal_add: metal_add.m
+metal_add: metal_add.m capture_helpers.h
 	$(CC) $(CFLAGS) -framework Metal -framework Foundation -o $@ $<
 
-metal_mul: metal_mul.m
+metal_mul: metal_mul.m capture_helpers.h
 	$(CC) $(CFLAGS) -framework Metal -framework Foundation -o $@ $<
 
-metal_tri: metal_tri.m
+metal_tri: metal_tri.m capture_helpers.h
 	$(CC) $(CFLAGS) -framework Metal -framework Foundation -o $@ $<
 
 replay: replay.c

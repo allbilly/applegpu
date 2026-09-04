@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "capture_helpers.h"
 
 static const char *kSource =
 	"#include <metal_stdlib>\n"
@@ -76,7 +77,17 @@ int main(int argc, char **argv)
 		td.sampleCount = 1;
 		td.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
 		td.storageMode = MTLStorageModeShared;
-		id<MTLTexture> tex = [dev newTextureWithDescriptor:td];
+		NSUInteger alignment = [dev minimumLinearTextureAlignmentForPixelFormat:
+			MTLPixelFormatBGRA8Unorm];
+		NSUInteger row_bytes = ((W * 4 + alignment - 1) / alignment) * alignment;
+		id<MTLBuffer> tex_buffer = [dev newBufferWithLength:row_bytes * H
+			options:MTLResourceStorageModeShared];
+		id<MTLTexture> tex = [tex_buffer newTextureWithDescriptor:td
+			offset:0 bytesPerRow:row_bytes];
+		if (!tex) {
+			fprintf(stderr, "buffer-backed texture creation failed\n");
+			return 1;
+		}
 
 		// Big-triangle covering the full viewport.
 		struct { float x, y; } verts[] = {
@@ -109,6 +120,8 @@ int main(int argc, char **argv)
 			fromRegion:MTLRegionMake2D(0, 0, W, H) mipmapLevel:0];
 
 		int ok = check_pixels(pixels, W, H);
+		NSUInteger center_off = (H / 2) * row_bytes + (W / 2) * 4;
+		agx_capture_expected((const uint8_t *)tex_buffer.contents + center_off, 4);
 		printf("triangle %s\n", ok ? "PASS" : "FAIL");
 
 		const char *ppm = getenv("METAL_TRI_PPM");

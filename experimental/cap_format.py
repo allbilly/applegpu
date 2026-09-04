@@ -8,9 +8,16 @@ from pathlib import Path
 from typing import Iterator
 
 CAP_MAGIC = 0x43584741
+CAP_VERSION = 2
+CAP_SUPPORTED_VERSIONS = (1, CAP_VERSION)
 CAP_OPEN = 1
 CAP_CALL = 2
 CAP_TRAP = 3
+CAP_MEMORY = 4
+
+CAP_MEMORY_RESOURCE = 1
+CAP_MEMORY_TRAP_AUX = 2
+CAP_MEMORY_EXPECTED = 3
 
 CAP_HDR_FMT = "<4I"
 CAP_OPEN_FMT = "<B3xIiI"
@@ -18,6 +25,7 @@ CAP_CALL_HDR_FMT = "<B3xIIII"
 CAP_CALL_TAIL_FMT = "<i2I"
 CAP_TRAP_HDR_FMT = "<B3xII4xQQQQI4x"
 CAP_TRAP_TAIL_FMT = "<i"
+CAP_MEMORY_HDR_FMT = "<BBHIQQ"
 
 
 @dataclass
@@ -52,7 +60,14 @@ class CapTrap:
     expected_rc: int
 
 
-CapEvent = CapOpen | CapCall | CapTrap
+@dataclass
+class CapMemory:
+    kind: int
+    address: int
+    data: bytes
+
+
+CapEvent = CapOpen | CapCall | CapTrap | CapMemory
 
 
 class AddrMap:
@@ -60,25 +75,57 @@ class AddrMap:
 
     def __init__(self) -> None:
         self._maps: dict[int, int] = {}
+        self._ranges: list[tuple[int, int, int]] = []
 
     def add(self, old: int, new: int) -> None:
-        if not old or not new or old == new:
+        if not old or not new:
             return
         self._maps[old] = new
 
+    def add_range(self, old: int, new: int, size: int) -> None:
+        if not old or not new or not size:
+            return
+        self.add(old, new)
+        entry = (old, new, size)
+        if entry not in self._ranges:
+            self._ranges.append(entry)
+
     def remap(self, value: int) -> int:
-        return self._maps.get(value, value)
+        exact = self._maps.get(value)
+        if exact is not None:
+            return exact
+        for old, new, size in self._ranges:
+            if old <= value < old + size:
+                return new + (value - old)
+        return value
+
+    def contains(self, value: int) -> bool:
+        if value in self._maps:
+            return True
+        return any(old <= value < old + size for old, _new, size in self._ranges)
 
     def patch_u64_buf(self, buf: bytearray) -> None:
-        for off in range(0, len(buf) - 7, 8):
+        for off in range(0, len(buf) - 7, 4):
             old, = struct.unpack_from("<Q", buf, off)
             struct.pack_into("<Q", buf, off, self.remap(old))
 
     def learn_resource_maps(self, cap: bytes, live: bytes) -> None:
         if len(cap) < 24 or len(live) < 24:
             return
-        self.add(struct.unpack_from("<Q", cap, 8)[0], struct.unpack_from("<Q", live, 8)[0])
+        old_va = struct.unpack_from("<Q", cap, 8)[0]
+        new_va = struct.unpack_from("<Q", live, 8)[0]
+        heap_size = struct.unpack_from("<Q", cap, 0x28)[0] if len(cap) >= 0x30 else 0
+        self.add_range(old_va, new_va, heap_size)
         self.add(struct.unpack_from("<Q", cap, 16)[0], struct.unpack_from("<Q", live, 16)[0])
+
+    def learn_shmem_maps(self, cap: bytes, live: bytes, size: int | None = None) -> None:
+        if len(cap) < 8 or len(live) < 8:
+            return
+        old = struct.unpack_from("<Q", cap, 0)[0]
+        new = struct.unpack_from("<Q", live, 0)[0]
+        if size is None:
+            size = struct.unpack_from("<I", cap, 8)[0] if len(cap) >= 12 else 0
+        self.add_range(old, new, size)
 
     def __len__(self) -> int:
         return len(self._maps)
@@ -105,6 +152,8 @@ class CaptureReader:
         magic, version, count, _pad = struct.unpack(CAP_HDR_FMT, self.read(16))
         if magic != CAP_MAGIC:
             raise ValueError(f"bad magic 0x{magic:08x}")
+        if version not in CAP_SUPPORTED_VERSIONS:
+            raise ValueError(f"unsupported capture version {version}")
         return magic, version, count, _pad
 
     def read_open(self) -> CapOpen:
@@ -148,6 +197,13 @@ class CaptureReader:
         (expected_rc,) = struct.unpack(CAP_TRAP_TAIL_FMT, self.read(4))
         return CapTrap(conn, trap_idx, p1, p2, p3, p4, snap, expected_rc)
 
+    def read_memory(self) -> CapMemory:
+        hdr = self.read(struct.calcsize(CAP_MEMORY_HDR_FMT))
+        _type, kind, _flags, _pad, address, size = struct.unpack(
+            CAP_MEMORY_HDR_FMT, hdr
+        )
+        return CapMemory(kind, address, self.read(size))
+
     def iter_events(self) -> Iterator[CapEvent]:
         self.read_hdr()
         while True:
@@ -160,6 +216,8 @@ class CaptureReader:
                 yield self.read_call()
             elif op_type == CAP_TRAP:
                 yield self.read_trap()
+            elif op_type == CAP_MEMORY:
+                yield self.read_memory()
             else:
                 raise ValueError(f"bad capture type {op_type} at offset {self.off}")
 
