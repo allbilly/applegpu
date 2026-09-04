@@ -1,0 +1,140 @@
+add: replaying 48 ops
+[S1] CTX   +    0.006ms open AGX user client type=0x100005
+[S1] OPEN  +    1.256ms service=0xd03 conn=0x1c0f SUCCESS
+
+[S2] CTX   +    1.284ms replay captured resource, queue, and shared-memory setup
+[S2.1][E000001] CALL  +    1.314ms op=1 NEW_RESOURCE sel=0x09 alloc=0x8430 type=0x10001 heap=0x10000 struct=104B -> 88B
+[S2.1][E000001] RET   +    1.401ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x0, tag=0, gpu_va=0x100fd0000, gpu_va2=0x1009e80c0, slot=1, heap=0x10000) time=0.065ms OK
+[S2.1][E000001] MAP   +    1.417ms GPU VA 0x100bdc000 -> 0x100fd0000
+[S2.1][E000001] MAP   +    1.423ms GPU VA 0x100bc80c0 -> 0x1009e80c0
+[S2.2][E000002] CALL  +    1.447ms op=2 NEW_RESOURCE sel=0x09 alloc=0x470 type=0x10001 heap=0x20000 backing_ptr=0x10b4d4be0 struct=104B -> 88B
+[S2.2][E000002] RET   +    1.483ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x0, tag=21, gpu_va=0x105a00000, gpu_va2=0x1009e8180, slot=2, heap=0x20000) time=0.019ms OK
+[S2.2][E000002] MAP   +    1.496ms GPU VA 0x100df0000 -> 0x105a00000
+[S2.2][E000002] MAP   +    1.501ms GPU VA 0x100bc8180 -> 0x1009e8180
+[S2.3][E000003] CALL  +    1.522ms op=3 NEW_RESOURCE sel=0x09 alloc=0xc30 type=0x10001 parent=0x80 parent_va=0x100df0000 heap=0x20000 backing_ptr=0x10b4d4be0 struct=104B -> 88B
+[S2.3][E000003] RET   +    1.550ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x0, tag=21, gpu_va=0x0, gpu_va2=0x1009e8240, slot=3, heap=0x20000) time=0.010ms OK
+[S2.3][E000003] MAP   +    1.559ms GPU VA 0x100bc8240 -> 0x1009e8240
+[S2.4][E000004] CALL  +    1.579ms op=4 NEW_RESOURCE sel=0x09 alloc=0xc30 type=0x10001 parent=0x80 parent_va=0x100df0100 heap=0x20000 backing_ptr=0x10b4d4be0 struct=104B -> 88B
+[S2.4][E000004] RET   +    1.602ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x100, tag=21, gpu_va=0x0, gpu_va2=0x1009e8300, slot=4, heap=0x20000) time=0.008ms OK
+[S2.4][E000004] MAP   +    1.610ms GPU VA 0x100bc8300 -> 0x1009e8300
+[S2.5][E000005] CALL  +    1.627ms op=5 NEW_RESOURCE sel=0x09 alloc=0xc30 type=0x10001 parent=0x80 parent_va=0x100df0200 heap=0x20000 struct=104B -> 88B
+[S2.5][E000005] RET   +    1.649ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x200, tag=21, gpu_va=0x0, gpu_va2=0x1009e83c0, slot=5, heap=0x20000) time=0.008ms OK
+[S2.5][E000005] MAP   +    1.657ms GPU VA 0x100bc83c0 -> 0x1009e83c0
+[S2.6][E000006] CALL  +    1.733ms op=6 QUEUE_CREATE sel=0x07 exe='metal_add' label='' flags=0x2 enable=1 struct=1040B -> 16B
+[S2.6][E000006] RET   +    1.819ms SUCCESS expected=SUCCESS size=16/16B out=QueueCreateOut(queue_id=1, cookie=0x766820ea) time=0.073ms OK
+[S2.7][E000007] CALL  +    1.831ms op=7 NOTIF_QUEUE sel=0x10 ring_size=0x100 flags=0x28 struct=0B -> 16B
+[S2.7][E000007] RET   +    1.873ms SUCCESS expected=SUCCESS size=16/16B out=NotifQueueOut(ring=0x1009f4000, queue_id=1) time=0.031ms OK
+[S2.7][E000007] MAP   +    1.883ms GPU VA 0x100e10000 -> 0x1009f4000
+[S2.8][E000008] CALL  +    1.890ms op=8 QUEUE_FINALIZE sel=0x1c queue=1 finalize=1 struct=0B -> 0B
+[S2.8][E000008] RET   +    1.904ms SUCCESS expected=SUCCESS size=0/0B out=bytes[0] time=0.007ms OK
+[S2.9][E000009] CALL  +    1.923ms op=9 NEW_RESOURCE sel=0x09 alloc=0xc30 type=0x10001 parent=0x80 parent_va=0x100df0300 heap=0x20000 backing_ptr=0x10b4d54a0 struct=104B -> 88B
+[S2.9][E000009] RET   +    1.952ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x300, tag=21, gpu_va=0x0, gpu_va2=0x1009e8480, slot=6, heap=0x20000) time=0.008ms OK
+[S2.9][E000009] MAP   +    1.960ms GPU VA 0x100bc8480 -> 0x1009e8480
+[S2.10][E000010] CALL  +    1.977ms op=10 NEW_RESOURCE sel=0x09 alloc=0xc30 type=0x10001 parent=0x80 parent_va=0x100df0500 heap=0x20000 backing_ptr=0x10b4d54a0 struct=104B -> 88B
+[S2.10][E000010] RET   +    1.997ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x500, tag=21, gpu_va=0x0, gpu_va2=0x1009e8540, slot=7, heap=0x20000) time=0.007ms OK
+[S2.10][E000010] MAP   +    2.005ms GPU VA 0x100bc8540 -> 0x1009e8540
+[S2.11][E000011] CALL  +    2.021ms op=11 NEW_RESOURCE sel=0x09 alloc=0xc30 type=0x10001 parent=0x80 parent_va=0x100df0700 heap=0x20000 backing_ptr=0x10b4d54a0 struct=104B -> 88B
+[S2.11][E000011] RET   +    2.047ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x700, tag=21, gpu_va=0x0, gpu_va2=0x1009e8600, slot=8, heap=0x20000) time=0.008ms OK
+[S2.11][E000011] MAP   +    2.054ms GPU VA 0x100bc8600 -> 0x1009e8600
+[S2.12][E000012] CALL  +    2.071ms op=12 NEW_RESOURCE sel=0x09 alloc=0xc30 type=0x10001 parent=0x80 parent_va=0x100df0800 heap=0x20000 backing_ptr=0xc99092210 struct=104B -> 88B
+[S2.12][E000012] RET   +    2.089ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x800, tag=21, gpu_va=0x0, gpu_va2=0x1009e86c0, slot=9, heap=0x20000) time=0.007ms OK
+[S2.12][E000012] MAP   +    2.096ms GPU VA 0x100bc86c0 -> 0x1009e86c0
+[S2.13][E000013] CALL  +    2.112ms op=13 NEW_RESOURCE sel=0x09 alloc=0xc30 type=0x10001 parent=0x80 parent_va=0x100df2800 heap=0x20000 backing_ptr=0xc99092298 struct=104B -> 88B
+[S2.13][E000013] RET   +    2.130ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x2800, tag=21, gpu_va=0x0, gpu_va2=0x1009e8780, slot=10, heap=0x20000) time=0.007ms OK
+[S2.13][E000013] MAP   +    2.137ms GPU VA 0x100bc8780 -> 0x1009e8780
+[S2.14][E000014] CALL  +    2.156ms op=14 NEW_RESOURCE sel=0x09 alloc=0xc30 type=0x10001 parent=0x80 parent_va=0x100df2900 heap=0x20000 backing_ptr=0xc990925b8 struct=104B -> 88B
+[S2.14][E000014] RET   +    2.174ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x2900, tag=21, gpu_va=0x0, gpu_va2=0x1009e8840, slot=11, heap=0x20000) time=0.006ms OK
+[S2.14][E000014] MAP   +    2.180ms GPU VA 0x100bc8840 -> 0x1009e8840
+[S2.15][E000015] CALL  +    2.196ms op=15 NEW_RESOURCE sel=0x09 alloc=0xc30 type=0x10001 parent=0x80 parent_va=0x100df3900 heap=0x20000 backing_ptr=0xc990928d8 struct=104B -> 88B
+[S2.15][E000015] RET   +    2.213ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x3900, tag=21, gpu_va=0x0, gpu_va2=0x1009e8900, slot=12, heap=0x20000) time=0.006ms OK
+[S2.15][E000015] MAP   +    2.220ms GPU VA 0x100bc8900 -> 0x1009e8900
+[S2.16][E000016] CALL  +    2.235ms op=16 NEW_RESOURCE sel=0x09 alloc=0xc30 type=0x10001 parent=0x80 parent_va=0x100df3a00 heap=0x20000 backing_ptr=0xc99092be0 struct=104B -> 88B
+[S2.16][E000016] RET   +    2.253ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x3a00, tag=21, gpu_va=0x0, gpu_va2=0x1009e89c0, slot=13, heap=0x20000) time=0.007ms OK
+[S2.16][E000016] MAP   +    2.260ms GPU VA 0x100bc89c0 -> 0x1009e89c0
+[S2.17][E000017] CALL  +    2.276ms op=17 NEW_RESOURCE sel=0x09 alloc=0xc30 type=0x10001 parent=0x80 parent_va=0x100df3b00 heap=0x20000 backing_ptr=0xc99092ee8 struct=104B -> 88B
+[S2.17][E000017] RET   +    2.293ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x3b00, tag=21, gpu_va=0x0, gpu_va2=0x1009e8a80, slot=14, heap=0x20000) time=0.006ms OK
+[S2.17][E000017] MAP   +    2.299ms GPU VA 0x100bc8a80 -> 0x1009e8a80
+[S2.18][E000018] CALL  +    2.314ms op=18 NEW_RESOURCE sel=0x09 alloc=0x430 type=0x10001 heap=0x10000 struct=104B -> 88B
+[S2.18][E000018] RET   +    2.335ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x28000, tag=21, gpu_va=0x105a20000, gpu_va2=0x1009e8b40, slot=15, heap=0x10000) time=0.012ms OK
+[S2.18][E000018] MAP   +    2.343ms GPU VA 0x100e14000 -> 0x105a20000
+[S2.18][E000018] MAP   +    2.347ms GPU VA 0x100bc8b40 -> 0x1009e8b40
+[S2.19][E000019] CALL  +    2.364ms op=19 NEW_RESOURCE sel=0x09 alloc=0xc30 type=0x10001 parent=0x80 parent_va=0x100df3c00 heap=0x20000 backing_ptr=0x10b4d4be0 struct=104B -> 88B
+[S2.19][E000019] RET   +    2.381ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x3c00, tag=21, gpu_va=0x0, gpu_va2=0x1009e8c00, slot=16, heap=0x20000) time=0.006ms OK
+[S2.19][E000019] MAP   +    2.387ms GPU VA 0x100bc8c00 -> 0x1009e8c00
+[S2.20][E000020] CALL  +    2.404ms op=20 NEW_RESOURCE sel=0x09 alloc=0x470 type=0x10001 heap=0x20000 backing_ptr=0x10b4d4be0 struct=104B -> 88B
+[S2.20][E000020] RET   +    2.424ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x40000, tag=21, gpu_va=0x105a30000, gpu_va2=0x1009e8cc0, slot=17, heap=0x20000) time=0.011ms OK
+[S2.20][E000020] MAP   +    2.436ms GPU VA 0x105648000 -> 0x105a30000
+[S2.20][E000020] MAP   +    2.440ms GPU VA 0x100bc8cc0 -> 0x1009e8cc0
+[S2.21][E000021] CALL  +    2.458ms op=21 NEW_RESOURCE sel=0x09 alloc=0xc30 type=0x10001 parent=0x80 parent_va=0x105648000 heap=0x20000 backing_ptr=0xc99090000 struct=104B -> 88B
+[S2.21][E000021] RET   +    2.476ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x40000, tag=21, gpu_va=0x0, gpu_va2=0x1009e8d80, slot=18, heap=0x20000) time=0.006ms OK
+[S2.21][E000021] MAP   +    2.483ms GPU VA 0x100bc8d80 -> 0x1009e8d80
+[S2.22][E000022] CALL  +    2.489ms op=22 SHMEM sel=0x0e size=0x4000 flags=0x0 struct=0B -> 16B
+[S2.22][E000022] RET   +    2.507ms SUCCESS expected=SUCCESS size=16/16B out=ShmemOut(gpu_va=0x1009f8000, size=0x4000, id=1) time=0.012ms OK
+[S2.22][E000022] MAP   +    2.516ms GPU VA 0x100e24000 -> 0x1009f8000
+[S2.23][E000023] CALL  +    2.522ms op=23 SHMEM sel=0x0e size=0x4000 flags=0x1 struct=0B -> 16B
+[S2.23][E000023] RET   +    2.537ms SUCCESS expected=SUCCESS size=16/16B out=ShmemOut(gpu_va=0x1009fc000, size=0x4000, id=2) time=0.010ms OK
+[S2.23][E000023] MAP   +    2.545ms GPU VA 0x100e28000 -> 0x1009fc000
+[S2.24][E000024] CALL  +    2.564ms op=24 NEW_RESOURCE sel=0x09 alloc=0x4430 type=0x18000 heap=0x8000 struct=104B -> 88B
+[S2.24][E000024] RET   +    2.586ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x68000, tag=21, gpu_va=0x105a50000, gpu_va2=0x1009e8e40, slot=19, heap=0x8000) time=0.012ms OK
+[S2.24][E000024] MAP   +    2.594ms GPU VA 0x105668000 -> 0x105a50000
+[S2.24][E000024] MAP   +    2.598ms GPU VA 0x100bc8e40 -> 0x1009e8e40
+[S2.25][E000025] CALL  +    2.618ms op=25 NEW_RESOURCE sel=0x09 alloc=0xc430 type=0x18000 heap=0x8000 struct=104B -> 88B
+[S2.25][E000025] RET   +    2.637ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x18000, tag=0, gpu_va=0x105cfc000, gpu_va2=0x1009e8f00, slot=20, heap=0x8000) time=0.010ms OK
+[S2.25][E000025] MAP   +    2.644ms GPU VA 0x105670000 -> 0x105cfc000
+[S2.25][E000025] MAP   +    2.648ms GPU VA 0x100bc8f00 -> 0x1009e8f00
+[S2.26][E000026] CALL  +    2.668ms op=26 NEW_RESOURCE sel=0x09 alloc=0x4430 type=0x18000 heap=0x8000 struct=104B -> 88B
+[S2.26][E000026] RET   +    2.687ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x78000, tag=21, gpu_va=0x105d04000, gpu_va2=0x1009e8fc0, slot=21, heap=0x8000) time=0.010ms OK
+[S2.26][E000026] MAP   +    2.694ms GPU VA 0x105678000 -> 0x105d04000
+[S2.26][E000026] MAP   +    2.698ms GPU VA 0x100bc8fc0 -> 0x1009e8fc0
+[S2.27][E000027] CALL  +    2.719ms op=27 NEW_RESOURCE sel=0x09 alloc=0x4430 type=0x18000 heap=0x8000 struct=104B -> 88B
+[S2.27][E000027] RET   +    2.739ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x88000, tag=21, gpu_va=0x105d0c000, gpu_va2=0x1009e9080, slot=22, heap=0x8000) time=0.011ms OK
+[S2.27][E000027] MAP   +    2.745ms GPU VA 0x105680000 -> 0x105d0c000
+[S2.27][E000027] MAP   +    2.749ms GPU VA 0x100bc9080 -> 0x1009e9080
+[S2.28][E000028] CALL  +    2.771ms op=28 NEW_RESOURCE sel=0x09 alloc=0x4430 type=0x18000 heap=0x8000 struct=104B -> 88B
+[S2.28][E000028] RET   +    2.790ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0x98000, tag=21, gpu_va=0x105d14000, gpu_va2=0x1009e9140, slot=23, heap=0x8000) time=0.011ms OK
+[S2.28][E000028] MAP   +    2.797ms GPU VA 0x105688000 -> 0x105d14000
+[S2.28][E000028] MAP   +    2.801ms GPU VA 0x100bc9140 -> 0x1009e9140
+[S2.29][E000029] CALL  +    2.824ms op=29 NEW_RESOURCE sel=0x09 alloc=0x4430 type=0x18000 heap=0x8000 struct=104B -> 88B
+[S2.29][E000029] RET   +    2.844ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0xa8000, tag=21, gpu_va=0x105d1c000, gpu_va2=0x1009e9200, slot=24, heap=0x8000) time=0.011ms OK
+[S2.29][E000029] MAP   +    2.851ms GPU VA 0x105690000 -> 0x105d1c000
+[S2.29][E000029] MAP   +    2.855ms GPU VA 0x100bc9200 -> 0x1009e9200
+[S2.30][E000030] CALL  +    2.879ms op=30 NEW_RESOURCE sel=0x09 alloc=0x4430 type=0x1ff80 heap=0xff80 struct=104B -> 88B
+[S2.30][E000030] RET   +    2.902ms SUCCESS expected=SUCCESS size=88/88B out=ResourceCreateOut(rid=0xb8000, tag=21, gpu_va=0x105d24000, gpu_va2=0x1009e92c0, slot=25, heap=0x10000) time=0.011ms OK
+[S2.30][E000030] MAP   +    2.909ms GPU VA 0x105698000 -> 0x105d24000
+[S2.30][E000030] MAP   +    2.913ms GPU VA 0x100bc92c0 -> 0x1009e92c0
+[S2.31][E000031] LOAD  +   14.621ms 0x100bdc000 -> 0x100fd0000 size=0x10000 patches=0
+[S2.32][E000032] LOAD  +   35.152ms 0x100df0000 -> 0x105a00000 size=0x20000 patches=0
+[S2.33][E000033] LOAD  +   37.590ms 0x100e10000 -> 0x1009f4000 size=0x4000 patches=0
+[S2.34][E000034] LOAD  +   47.320ms 0x100e14000 -> 0x105a20000 size=0x10000 patches=0
+[S2.35][E000035] LOAD  +   66.607ms 0x105648000 -> 0x105a30000 size=0x20000 patches=0
+[S2.36][E000036] LOAD  +   69.048ms 0x100e24000 -> 0x1009f8000 size=0x4000 patches=0
+[S2.37][E000037] LOAD  +   71.484ms 0x100e28000 -> 0x1009fc000 size=0x4000 patches=0
+[S2.38][E000038] LOAD  +   76.326ms 0x105668000 -> 0x105a50000 size=0x8000 patches=0
+[S2.39][E000039] LOAD  +   81.179ms 0x105670000 -> 0x105cfc000 size=0x8000 patches=0
+[S2.40][E000040] LOAD  +   86.023ms 0x105678000 -> 0x105d04000 size=0x8000 patches=0
+[S2.41][E000041] LOAD  +   90.860ms 0x105680000 -> 0x105d0c000 size=0x8000 patches=0
+[S2.42][E000042] LOAD  +   95.684ms 0x105688000 -> 0x105d14000 size=0x8000 patches=0
+[S2.43][E000043] LOAD  +  100.570ms 0x105690000 -> 0x105d1c000 size=0x8000 patches=0
+[S2.44][E000044] LOAD  +  110.229ms 0x105698000 -> 0x105d24000 size=0x10000 patches=0
+[S2.45][E000045] AUX   +  110.359ms trap descriptor 0xc98c40480 -> 0x82900cac0 (48B, 0 patches)
+[S2.46][E000046] AUX   +  110.424ms trap descriptor 0xc98c404b0 -> 0x82900cb00 (48B, 0 patches)
+
+[S3] CTX   +  110.440ms submit captured command buffer through IOConnectTrap4
+[S3.1][E000047] TRAP  +  110.463ms op=47 trap0 p1=0x1 p2=0x40 record_type=2 flags=0x1 callback0=0x82900cac0 callback1=0x82900cb00
+[S3.1][E000047] RET   +  110.708ms trap0 SUCCESS expected=SUCCESS time=0.234ms OK
+
+[S4] CTX   +  110.724ms wait for and compare CPU-visible GPU output
+[S4.1][E000048] WAIT  +  110.733ms GPU output @0x105a00200 size=16B timeout=5.0s
+[S4.1][E000048] DATA  +  112.016ms result=(11.0, 22.0, 33.0, 44.0)
+[S4.1][E000048] PASS  +  112.022ms GPU output matched captured result
+result=(11.0, 22.0, 33.0, 44.0)
+PASS (GPU output and all IOKit results matched)
+
+========================================================================
+                            APPLE GPU REPLAY                            
+========================================================================
+[S1] IOKit Client                 OK      1.271 ms  service=0xd03, conn=0x1c0f
+[S2] Resource + Queue Setup       OK    109.148 ms  46 setup ops, 0 mismatches, 41 VA maps
+[S3] Trap Submit                  OK      0.281 ms  1 trap(s), 0 mismatches
+[S4] Result Validation            OK      1.304 ms  1 output check(s), 0 mismatches
+========================================================================
