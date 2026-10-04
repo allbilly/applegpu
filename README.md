@@ -34,6 +34,45 @@ make capture-mul standalone-mul  # multiply
 make capture-tri standalone-tri  # triangle
 ```
 
+## Asahi Linux
+
+Standalone Python examples, standard library and direct DRM ioctls only:
+
+```bash
+python3 examples/add_asahi.py
+python3 examples/mul_asahi.py
+python3 examples/tri_asahi.py
+AGX_TRACE=2 python3 examples/add_asahi.py
+```
+
+All three passed on an M1 MacBook Air, G13G B1, with Fedora Asahi kernel
+`7.1.13-402.asahi.fc44.aarch64+16k` on 2026-10-05. ADD returns
+`[11, 22, 33, 44]`, MUL returns `[10, 40, 90, 160]`, and the triangle checks
+all 64 pixels of an 8x8 RGBA8 render target. Each file contains its own driver
+bindings, GPU buffers, command construction, submission and result checking.
+
+Mesa 26.2.3 ADD/MUL also passed. Their 40-byte shaders match the standalone
+shaders through STOP. See the [ISA and command-state comparison](experimental/dumps/ASAHI.md)
+for saved dumps and reproduction commands.
+
+### Bring-up and capture tools
+
+[experimental/asahi.py](experimental/asahi.py) contains the bring-up source.
+ADD/MUL construct annotated shader bytes and USC/CDM commands; the triangle
+embeds native render state prepared offline with Mesa 25.3.6. All target
+base M1 (T8103, G13G) and require the Asahi DRM driver. `--dry-run` validates
+command data without GPU execution; `PASS` requires a completed GPU result.
+
+[experimental/mesa_compute.py](experimental/mesa_compute.py) captures ADD/MUL
+through installed Mesa GLES. [experimental/compare_asahi.py](experimental/compare_asahi.py)
+compares those dumps with the explicit DRM shader and dispatch state.
+
+Regenerate the standalone examples after changing the bring-up source:
+
+```bash
+python3 experimental/asahi2standalone.py
+```
+
 # Environment
 
 Tested on:

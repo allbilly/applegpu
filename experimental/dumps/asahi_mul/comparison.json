@@ -1,0 +1,39 @@
+{
+  "operation": "mul",
+  "shader_bytes_through_stop": 40,
+  "shader_sha256": "d30a84d8c959a24258a5ad249e13a3bbb71161a033d1f862d769abee14b900a0",
+  "shader_matches": true,
+  "standalone_trap_padding_bytes": 16,
+  "shader_registers": 8,
+  "uniform_halfs": 12,
+  "global_size": [
+    4,
+    1,
+    1
+  ],
+  "local_size": [
+    4,
+    1,
+    1
+  ],
+  "native_launch": {
+    "Uniform register count": "64",
+    "Texture state register count": "8",
+    "Sampler state register count": "4 compact",
+    "Preshader register count": "16",
+    "Mode": "Direct"
+  },
+  "standalone_launch": {
+    "uniform_register_count": 64,
+    "texture_state_register_count": 0,
+    "sampler_state_register_count": 0,
+    "preshader_register_count": 0,
+    "mode": "Direct"
+  },
+  "output": [
+    10.0,
+    40.0,
+    90.0,
+    160.0
+  ]
+}

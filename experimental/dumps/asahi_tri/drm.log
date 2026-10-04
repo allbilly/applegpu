@@ -1,0 +1,104 @@
+[asahi] VERSION OK
+[asahi] GET_PARAMS OK
+[asahi] device /dev/dri/renderD128, asahi 0.0.0, G13G revision 0x11, chip 0x8103
+[asahi] VM_CREATE OK
+[asahi] VM 1, kernel reservation 0x77ffff8000..0x7fffff8000
+[asahi] GEM_CREATE OK
+[asahi] GEM_MMAP_OFFSET OK
+[asahi] buffer 1 -> GEM 1, 0x4000 bytes
+[asahi] GEM_CREATE OK
+[asahi] GEM_MMAP_OFFSET OK
+[asahi] buffer 2 -> GEM 2, 0x4000 bytes
+[asahi] GEM_CREATE OK
+[asahi] GEM_MMAP_OFFSET OK
+[asahi] buffer 3 -> GEM 3, 0x4000 bytes
+[asahi] GEM_CREATE OK
+[asahi] GEM_MMAP_OFFSET OK
+[asahi] buffer 4 -> GEM 4, 0x4000 bytes
+[asahi] GEM_CREATE OK
+[asahi] GEM_MMAP_OFFSET OK
+[asahi] buffer 5 -> GEM 5, 0x40000 bytes
+[asahi] GEM_CREATE OK
+[asahi] GEM_MMAP_OFFSET OK
+[asahi] buffer 6 -> GEM 6, 0x4000 bytes
+[asahi] GEM_CREATE OK
+[asahi] GEM_MMAP_OFFSET OK
+[asahi] buffer 7 -> GEM 7, 0x4000 bytes
+[asahi] GEM_CREATE OK
+[asahi] GEM_MMAP_OFFSET OK
+[asahi] buffer 8 -> GEM 8, 0x4000 bytes
+[asahi] GEM_CREATE OK
+[asahi] GEM_MMAP_OFFSET OK
+[asahi] buffer 9 -> GEM 9, 0x4000 bytes
+[asahi] GEM_CREATE OK
+[asahi] GEM_MMAP_OFFSET OK
+[asahi] buffer 10 -> GEM 10, 0x4000 bytes
+[asahi] GEM_CREATE OK
+[asahi] GEM_MMAP_OFFSET OK
+[asahi] buffer 11 -> GEM 11, 0x40000 bytes
+[asahi] GEM_CREATE OK
+[asahi] GEM_MMAP_OFFSET OK
+[asahi] buffer 12 -> GEM 12, 0x40000 bytes
+[asahi] GEM_CREATE OK
+[asahi] GEM_MMAP_OFFSET OK
+[asahi] buffer 13 -> GEM 13, 0x80000 bytes
+[asahi] GEM_CREATE OK
+[asahi] GEM_MMAP_OFFSET OK
+[asahi] buffer 14 -> GEM 14, 0x100000 bytes
+[asahi] GEM_CREATE OK
+[asahi] GEM_MMAP_OFFSET OK
+[asahi] buffer 15 -> GEM 15, 0x4000 bytes
+[asahi] GEM_CREATE OK
+[asahi] GEM_MMAP_OFFSET OK
+[asahi] buffer 16 -> GEM 16, 0x4000 bytes
+[asahi] GEM_CREATE OK
+[asahi] GEM_MMAP_OFFSET OK
+[asahi] buffer 17 -> GEM 17, 0x4000 bytes
+[asahi] bind GEM 1: 0x2fffff8000+0x4000, flags 0x6
+[asahi] bind GEM 1: 0x100000000+0x4000, flags 0x2
+[asahi] bind GEM 2: 0x2fffff0000+0x4000, flags 0x6
+[asahi] bind GEM 2: 0x100004000+0x4000, flags 0x6
+[asahi] bind GEM 3: 0x2ffffe8000+0x4000, flags 0x6
+[asahi] bind GEM 3: 0x1000000000+0x4000, flags 0x6
+[asahi] bind GEM 4: 0x2ffffe0000+0x4000, flags 0x6
+[asahi] bind GEM 5: 0x11fffbc000+0x40000, flags 0x6
+[asahi] bind GEM 6: 0x2ffffd8000+0x4000, flags 0x6
+[asahi] bind GEM 7: 0x2ffffd0000+0x4000, flags 0x6
+[asahi] bind GEM 8: 0x11fffb4000+0x4000, flags 0x6
+[asahi] bind GEM 9: 0x11fffac000+0x4000, flags 0x6
+[asahi] bind GEM 10: 0x2ffffc8000+0x4000, flags 0x6
+[asahi] bind GEM 11: 0x2ffff84000+0x40000, flags 0x6
+[asahi] bind GEM 12: 0x11fff68000+0x40000, flags 0x6
+[asahi] bind GEM 13: 0x2ffff00000+0x80000, flags 0x6
+[asahi] bind GEM 14: 0x2fffdfc000+0x100000, flags 0x6
+[asahi] bind GEM 15: 0x11fff60000+0x4000, flags 0x6
+[asahi] bind GEM 16: 0x11fff58000+0x4000, flags 0x6
+[asahi] bind GEM 17: 0x11fff50000+0x4000, flags 0x6
+[asahi] VM_BIND OK
+[asahi] QUEUE_CREATE OK
+[asahi] SYNCOBJ_CREATE OK
+[asahi] SUBMIT OK
+[asahi] submitted tri, queue 1, 280 command bytes
+[asahi] SYNCOBJ_WAIT OK
+[asahi] completion fence signaled in 0.784 ms (host submit/wait time)
+[asahi] SYNCOBJ_DESTROY OK
+[asahi] QUEUE_DESTROY OK
+[asahi] VM_DESTROY OK
+[asahi] GEM_CLOSE OK
+[asahi] GEM_CLOSE OK
+[asahi] GEM_CLOSE OK
+[asahi] GEM_CLOSE OK
+[asahi] GEM_CLOSE OK
+[asahi] GEM_CLOSE OK
+[asahi] GEM_CLOSE OK
+[asahi] GEM_CLOSE OK
+[asahi] GEM_CLOSE OK
+[asahi] GEM_CLOSE OK
+[asahi] GEM_CLOSE OK
+[asahi] GEM_CLOSE OK
+[asahi] GEM_CLOSE OK
+[asahi] GEM_CLOSE OK
+[asahi] GEM_CLOSE OK
+[asahi] GEM_CLOSE OK
+[asahi] GEM_CLOSE OK
+tri: PASS 8x8 red triangle, all 64 RGBA8 pixels checked
