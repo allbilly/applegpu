@@ -1,0 +1,145 @@
+{
+  "status": "PASS",
+  "prompt_token_ids": [
+    15496,
+    995
+  ],
+  "generated_token_ids": [
+    11,
+    314,
+    1101,
+    407,
+    1654,
+    644,
+    284,
+    910,
+    13,
+    198,
+    198,
+    1,
+    40,
+    1101,
+    7926,
+    11,
+    475,
+    314,
+    1101,
+    407,
+    1654,
+    644,
+    284,
+    910,
+    13,
+    198,
+    198,
+    1,
+    40,
+    1101,
+    7926,
+    11
+  ],
+  "text": "Hello world, I'm not sure what to say.\n\n\"I'm sorry, but I'm not sure what to say.\n\n\"I'm sorry,",
+  "prefill_ms": 1316.381621,
+  "decode": {
+    "samples": 31,
+    "raw_ms": [
+      797.627176,
+      401.300081,
+      172.383077,
+      184.309356,
+      194.459498,
+      204.662725,
+      223.482005,
+      193.454092,
+      186.239206,
+      229.18222,
+      215.747562,
+      178.244088,
+      256.714391,
+      247.076181,
+      254.858752,
+      256.125957,
+      159.493976,
+      170.602564,
+      229.127635,
+      218.523646,
+      217.617077,
+      224.62704,
+      216.163575,
+      222.169299,
+      214.744781,
+      169.005932,
+      215.902441,
+      256.18025,
+      249.263498,
+      231.889803,
+      277.376603
+    ],
+    "mean_ms": 240.921112483871,
+    "median_ms": 218.523646,
+    "min_ms": 159.493976,
+    "max_ms": 797.627176,
+    "steps_per_second": 4.150736270848605
+  },
+  "provenance": {
+    "kernel": "7.1.13+",
+    "machine": "aarch64",
+    "driver_library_sha256": {
+      "libRusticlOpenCL.so.1.0.0": "5e1d8eb083bbe3ff19418514415310c8e15c36de7b7f3e5bab12002209852aab"
+    },
+    "checkpoint_sha256": "248dfc3911869ec493c76e65bf2fcf7f615828b0254c12b473182f0f81d3a707",
+    "checkpoint_revision": "607a30d783dfa663caf39e06633721c8d4cfcd7e",
+    "runtime": {
+      "backend": "tinygrad OpenCL",
+      "device": "Apple M1 (G13G B1)",
+      "driver": "26.2.3",
+      "dtype": "float32",
+      "beam": 0,
+      "beam_estimate": 1,
+      "prefill_jit": true,
+      "tinygrad_version": "0.14.0",
+      "tinygrad_commit": "ccae837c70301e3dab3ba8ea4db454249ad8f7e8",
+      "runtime_source_sha256": {
+        "tensor.py": "98bce1624d2d3fbd59e72e0f0f723ef1f9f7967b52b2b5ad3743df5a887b49b0",
+        "runtime/ops_cl.py": "6ed7a8a1fc57b3b355282b7bc7e54df67330f45454381d0fa1b8b68ab4ad6753",
+        "engine/realize.py": "79af7c3ae0bad192d26f351f773b2554d46b20e8908217f857325d7518f9992d",
+        "codegen/opt/search.py": "16a0632972ebeb16bd890814f0a558b28dcc24933befa064dd34f3c1372afd18"
+      },
+      "parameter_devices": [
+        "CL"
+      ]
+    },
+    "command": [
+      "/home/asahi/applegpu/gpt2/gpt2.py",
+      "--backend",
+      "tinygrad",
+      "--beam",
+      "0",
+      "--prompt",
+      "Hello world",
+      "--max-tokens",
+      "32",
+      "--output",
+      "gpt2/results/generate-tinygrad-float32.json"
+    ],
+    "runner_sources": {
+      "bpe.py": "7e3df9e85e1e3d76043113e9725d957686bf1203665eca9544c78ead4d35f486",
+      "common.py": "900103d7a895153ed0748ab03afe1887795497a1728ce3738ad63dd2b8f5a37c",
+      "tinygrad_backend.py": "6c20c0d22dcf56e1ffb107b237d08eea8b208fad1b2418e5c5dfcea4f768a03e",
+      "mlx_backend.py": "e08b7d4dc393c01a47b3776b265a426e2f8f234dd444ca5ac66abdf1e0b05a36",
+      "reference.py": "5837e77a9968512165d9d8210c8205f408e85c907c8e2dc3f5f7006629954bd9",
+      "gpt2.py": "06eb500454adce0d02d5a170e7c98e0b29251516b77c92b48c63c7f40f170535",
+      "bootstrap.py": "3a4e4af40f72cadce26e54d367881257af480a8675b658049fe6e551d0521124",
+      "compare.py": "7f9f56b51e87ac9cf301bc53599cf30857d18076c227ba3a8633d3b04e658bde"
+    },
+    "packages": {
+      "numpy": "2.5.3",
+      "safetensors": "0.8.0",
+      "regex": "2026.9.29"
+    },
+    "tokenizer_sha256": {
+      "vocab.json": "196139668be63f3b5d6574427317ae82f612a97c5d1cdaf36ed2256dbf636783",
+      "merges.txt": "1ce1664773c50f3e0cc8842619a93edc4624525b728b188a9e0be33b7726adc5"
+    }
+  }
+}

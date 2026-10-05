@@ -55,6 +55,19 @@ Mesa 26.2.3 ADD/MUL also passed. Their 40-byte shaders match the standalone
 shaders through STOP. See the [ISA and command-state comparison](experimental/dumps/ASAHI.md)
 for saved dumps and reproduction commands.
 
+### GPT-2 inference
+
+Run full GPT-2 124M on the M1 GPU through tinygrad OpenCL or omarchy-mlx Vulkan:
+
+```bash
+gpt2/first-run.sh --backend tinygrad --beam 0 --prompt 'Hello world'
+gpt2/first-run.sh --backend mlx --prompt 'Hello world'
+gpt2/first-run.sh compare --beams 0 2 --lengths 32 128 256
+```
+
+See [gpt2/README.md](gpt2/README.md) for setup, numerical verification,
+and separate warmed prefill and decode benchmarks.
+
 ### Bring-up and capture tools
 
 [experimental/asahi.py](experimental/asahi.py) contains the bring-up source.

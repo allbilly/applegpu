@@ -1,0 +1,4 @@
+numpy==2.5.3
+regex==2026.9.29
+safetensors==0.8.0
+tinygrad @ https://github.com/tinygrad/tinygrad/archive/ccae837c70301e3dab3ba8ea4db454249ad8f7e8.tar.gz

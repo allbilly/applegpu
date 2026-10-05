@@ -1,0 +1,8 @@
+mlx-omarchy @ https://github.com/joshuaswarren/omarchy-mlx/releases/download/v0.7.27/mlx_omarchy-0.32.4.dev202610041653%2B6edd258-cp314-cp314-linux_aarch64.whl#sha256=f10c1df8677d1ada2a438c7ec0d40b50fc3ca75b5cfdb2be8a697f9482f09b87
+mlx-lm==0.31.3
+transformers==5.18.0
+tokenizers==0.23.2
+sentencepiece==0.2.2
+protobuf==7.36.2
+pyyaml==6.0.3
+jinja2==3.1.6

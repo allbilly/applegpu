@@ -1,0 +1,31 @@
+{
+  "status": "PASS",
+  "audited_at_utc": "2026-10-05T10:59:34.154591+00:00",
+  "comparison_json_sha256": "db6a093a1b33f967f6840d5646da58c24616d571a4b103121301540d7d258ddf",
+  "source_sha256": {
+    "bpe.py": "7e3df9e85e1e3d76043113e9725d957686bf1203665eca9544c78ead4d35f486",
+    "common.py": "900103d7a895153ed0748ab03afe1887795497a1728ce3738ad63dd2b8f5a37c",
+    "tinygrad_backend.py": "6c20c0d22dcf56e1ffb107b237d08eea8b208fad1b2418e5c5dfcea4f768a03e",
+    "mlx_backend.py": "e08b7d4dc393c01a47b3776b265a426e2f8f234dd444ca5ac66abdf1e0b05a36",
+    "reference.py": "5837e77a9968512165d9d8210c8205f408e85c907c8e2dc3f5f7006629954bd9",
+    "gpt2.py": "06eb500454adce0d02d5a170e7c98e0b29251516b77c92b48c63c7f40f170535",
+    "bootstrap.py": "3a4e4af40f72cadce26e54d367881257af480a8675b658049fe6e551d0521124",
+    "compare.py": "0e81ec1d1778c22ef1d83bdd53151e2a518beff4b885cf46f34019940a5979d6"
+  },
+  "workers": 9,
+  "resumed_workers": 0,
+  "full_logit_checks": 1755,
+  "greedy_mismatches": 0,
+  "timed_prediction_checks": 1755,
+  "reference_identity_equal": true,
+  "worker_sources_equal": true,
+  "max_normalized_rmse": 0.0005311312620118881,
+  "max_kl_reference_to_gpu": 1.1152596381214362e-09,
+  "prompt_lengths": [
+    32,
+    128,
+    256
+  ],
+  "decode_steps_per_trial": 64,
+  "timing_scope": "Completed GPU model execution, KV update, GPU argmax and one-token host read; excludes model loading, first compilation, BEAM tuning, full-logit validation and detokenization"
+}

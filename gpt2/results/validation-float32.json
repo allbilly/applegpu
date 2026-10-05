@@ -1,0 +1,47 @@
+{
+  "status": "PASS",
+  "audited_at_utc": "2026-10-05T10:05:46.599394+00:00",
+  "comparison_json_sha256": "799967051f3e0f213f3307b5cb43c5165222734ab1e4e6ee8e76ca2c727aaab4",
+  "source_sha256": {
+    "bpe.py": "7e3df9e85e1e3d76043113e9725d957686bf1203665eca9544c78ead4d35f486",
+    "common.py": "900103d7a895153ed0748ab03afe1887795497a1728ce3738ad63dd2b8f5a37c",
+    "tinygrad_backend.py": "6c20c0d22dcf56e1ffb107b237d08eea8b208fad1b2418e5c5dfcea4f768a03e",
+    "mlx_backend.py": "e08b7d4dc393c01a47b3776b265a426e2f8f234dd444ca5ac66abdf1e0b05a36",
+    "reference.py": "5837e77a9968512165d9d8210c8205f408e85c907c8e2dc3f5f7006629954bd9",
+    "gpt2.py": "06eb500454adce0d02d5a170e7c98e0b29251516b77c92b48c63c7f40f170535",
+    "bootstrap.py": "3a4e4af40f72cadce26e54d367881257af480a8675b658049fe6e551d0521124",
+    "compare.py": "7f9f56b51e87ac9cf301bc53599cf30857d18076c227ba3a8633d3b04e658bde"
+  },
+  "launcher_sha256": "2539351e3e0703a71d641be5c375f040fc5f71c3d0f3558c341da05db94a093b",
+  "workers": 9,
+  "full_logit_checks": 1755,
+  "greedy_mismatches": 0,
+  "max_normalized_rmse": 0.0005311312620118881,
+  "max_kl_reference_to_gpu": 3.6364873732728747e-09,
+  "generation_modes": 3,
+  "generated_tokens_per_mode": 32,
+  "generation_ids_equal": true,
+  "reference_identity_equal": true,
+  "worker_inference_sources_equal": true,
+  "orchestrator_note": "Seven workers were reused after adding comparison resume and shared-lock retry support. Model and worker sources were unchanged.",
+  "gpu_dispatch_traces": {
+    "generate-mlx-float32": {
+      "kind": "Vulkan native compute dispatches",
+      "count": 8368,
+      "log_sha256": "45e2d7e81be23a335fa48cc4db9b360a6074d8c8ce0ea9cfda26ef29406a271b",
+      "generation_json_sha256": "a91f8807a3f65c62e5d355c12be498db5fa67b7d3bfd14f4fb1abf1a5774c36d"
+    },
+    "generate-tinygrad-float32": {
+      "kind": "OpenCL kernel executions",
+      "count": 8152,
+      "log_sha256": "ae78fa2c4b17d84b2369894e85a9dd7dd2f8e8526ca6a2d70fa2350ae6f21ba7",
+      "generation_json_sha256": "d2e2eecd937faf17890f6f2f5c89c54aeb3ca79e1d86ebc895fd1cc5162c8ea4"
+    },
+    "generate-tinygrad-beam2-float32": {
+      "kind": "OpenCL kernel executions",
+      "count": 8152,
+      "log_sha256": "dd7f85ac564ce6d0f3df74c0b7363f07cf1d02dc554fad08c0352cb2441ed12f",
+      "generation_json_sha256": "0ccd93d78ca4e1c84996ec5d593cf3d7dedc819c80b5e4671b1bad7138cc70d9"
+    }
+  }
+}
