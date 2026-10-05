@@ -1,0 +1,131 @@
+{
+  "status": "PASS",
+  "model": "Qwen/Qwen3.5-0.8B",
+  "revision": "2fc06364715b967f1860aea9cf38778875588b17",
+  "mode": "text-only",
+  "dtype": "float16",
+  "prompt": "The capital of France is",
+  "messages": null,
+  "thinking": false,
+  "prompt_token_ids": [
+    760,
+    6511,
+    314,
+    9338,
+    369
+  ],
+  "generated_token_ids": [
+    11751,
+    13,
+    198,
+    760,
+    6511,
+    314,
+    9338,
+    369
+  ],
+  "text": " Paris.\nThe capital of France is",
+  "stopped_on_eos": false,
+  "model_load_seconds": 4.9457002130002365,
+  "prefill_ms": 7223.155632,
+  "prefill_tokens_per_second": 0.6922182290866081,
+  "decode": {
+    "samples": 7,
+    "raw_ms": [
+      3621.456854,
+      1863.848283,
+      655.857096,
+      647.875537,
+      694.495385,
+      632.188681,
+      681.92609
+    ],
+    "mean_ms": 1256.8068465714284,
+    "median_ms": 681.92609,
+    "min_ms": 632.188681,
+    "max_ms": 3621.456854,
+    "steps_per_second": 0.795667212291214
+  },
+  "counters": {
+    "kernels": 4891,
+    "allocated_bytes": 1598726378
+  },
+  "environment_start": {
+    "temperatures_c": {
+      "Charge Regulator Temp": 60.523,
+      "WiFi/BT Module Temp": 59.25,
+      "NAND Flash Temperature": 59.298,
+      "Battery Hotspot": 42.899
+    },
+    "memory": {
+      "MemAvailable": 3536175104,
+      "SwapFree": 4918624256
+    }
+  },
+  "environment_end": {
+    "temperatures_c": {
+      "Charge Regulator Temp": 59.48,
+      "WiFi/BT Module Temp": 59.25,
+      "NAND Flash Temperature": 59.067,
+      "Battery Hotspot": 43.0
+    },
+    "memory": {
+      "MemAvailable": 1763655680,
+      "SwapFree": 4905156608
+    }
+  },
+  "timing_scope": "Completed GPU prediction, state updates and one-token read; excludes tokenization, printing and full-logit copies. Includes first-use compilation/JIT capture; use warmed runs for performance comparisons.",
+  "provenance": {
+    "runtime": {
+      "backend": "tinygrad OpenCL",
+      "device": "Apple M1 (G13G B1)",
+      "driver": "26.2.3",
+      "dtype": "float16",
+      "beam": 0,
+      "beam_estimate": 1,
+      "tinygrad_version": "0.14.0",
+      "tinygrad_commit": "ccae837c70301e3dab3ba8ea4db454249ad8f7e8",
+      "parameter_devices": [
+        "CL"
+      ],
+      "text_parameters": 320,
+      "recurrent_layers": 18,
+      "full_attention_layers": 6,
+      "recurrence": "OpenCL tensor operations; FP32 recurrent state",
+      "prefill_jit": true
+    },
+    "kernel": "7.1.13+",
+    "machine": "aarch64",
+    "base_commit": "b14d4cccc0aa8721bbc2936c7c9f9fec56813b0b",
+    "checkpoint_sha256": {
+      "model.safetensors-00001-of-00001.safetensors": "04b1c301231dd422b8860db31311ab2721511346a32cb1e079c4c4e5f1fe4696",
+      "config.json": "b90b86f35c8e6925ef74ee04d0e758f0a845c83a42089ad82bbaa948de9b4204",
+      "tokenizer.json": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42",
+      "tokenizer_config.json": "49e2b6e395f959f077f1e992b338919c0d4a9732fc6e613995e06557f843500c",
+      "chat_template.jinja": "273d8e0e683b885071fb17e08d71e5f2a5ddfb5309756181681de4f5a1822d80",
+      "LICENSE": "bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a"
+    },
+    "runner_sources": {
+      "checkpoint.py": "67a1579faa7325f66386f64a06a1043af2a348f15a370a101a43a19ff6eedc33",
+      "mlx_backend.py": "ed8a590909154c1bc7957342dea71e3eced4f1fba687971cc2c01f38547cb3f4",
+      "tinygrad_backend.py": "40655a6a708838bfbce5c18b38c19c4fcad6322075e35794060358180a58b0d0",
+      "qwen35.py": "0176f812238ef60cff315b84c5c39bdc2e73b3ae85238b9871cc10e842f9a735",
+      "bootstrap.py": "8143413a658a17fef4a7beabdeb363c27554a55fbf3491b4e37b17550e8e5807"
+    },
+    "driver_library_sha256": {
+      "libRusticlOpenCL.so.1.0.0": "5e1d8eb083bbe3ff19418514415310c8e15c36de7b7f3e5bab12002209852aab"
+    },
+    "command": [
+      "/home/asahi/applegpu/qwen35/qwen35.py",
+      "--backend",
+      "tinygrad",
+      "--raw",
+      "--prompt",
+      "The capital of France is",
+      "--max-tokens",
+      "8",
+      "--output",
+      "qwen35/results/generate-tinygrad-raw-float16.json"
+    ]
+  }
+}

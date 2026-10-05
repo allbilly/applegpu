@@ -1,0 +1,98 @@
+{
+  "status": "PASS",
+  "checks": {
+    "gpu_checked_argmax": {
+      "mlx": [
+        {
+          "input": [
+            "1.0",
+            "3.0",
+            "2.0"
+          ],
+          "expected": 1,
+          "actual": 1
+        },
+        {
+          "input": [
+            "nan",
+            "3.0",
+            "2.0"
+          ],
+          "expected": -1,
+          "actual": -1
+        },
+        {
+          "input": [
+            "1.0",
+            "inf",
+            "2.0"
+          ],
+          "expected": -1,
+          "actual": -1
+        },
+        {
+          "input": [
+            "1.0",
+            "3.0",
+            "-inf"
+          ],
+          "expected": -1,
+          "actual": -1
+        }
+      ],
+      "tinygrad": [
+        {
+          "input": [
+            "1.0",
+            "3.0",
+            "2.0"
+          ],
+          "expected": 1,
+          "actual": 1
+        },
+        {
+          "input": [
+            "nan",
+            "3.0",
+            "2.0"
+          ],
+          "expected": -1,
+          "actual": -1
+        },
+        {
+          "input": [
+            "1.0",
+            "inf",
+            "2.0"
+          ],
+          "expected": -1,
+          "actual": -1
+        },
+        {
+          "input": [
+            "1.0",
+            "3.0",
+            "-inf"
+          ],
+          "expected": -1,
+          "actual": -1
+        }
+      ]
+    },
+    "git_checkout": true,
+    "gitless_directory": true,
+    "missing_git_executable": true
+  },
+  "source_hashes": {
+    "checkpoint.py": "67a1579faa7325f66386f64a06a1043af2a348f15a370a101a43a19ff6eedc33",
+    "mlx_backend.py": "ed8a590909154c1bc7957342dea71e3eced4f1fba687971cc2c01f38547cb3f4",
+    "tinygrad_backend.py": "40655a6a708838bfbce5c18b38c19c4fcad6322075e35794060358180a58b0d0",
+    "qwen35.py": "0176f812238ef60cff315b84c5c39bdc2e73b3ae85238b9871cc10e842f9a735",
+    "bootstrap.py": "8143413a658a17fef4a7beabdeb363c27554a55fbf3491b4e37b17550e8e5807"
+  },
+  "libraries": {
+    "mlx_omarchy": "0.32.4.dev202610041653+6edd258",
+    "tinygrad": "0.14.0"
+  },
+  "scope": "Focused review checks of finite/NaN/infinity GPU selection and optional Git provenance; model generation is recorded separately."
+}

@@ -68,6 +68,18 @@ gpt2/first-run.sh compare --beams 0 2 --lengths 32 128 256
 See [gpt2/README.md](gpt2/README.md) for setup, numerical verification,
 and separate warmed prefill and decode benchmarks.
 
+### Qwen3.5-0.8B inference
+
+Run the official Qwen3.5-0.8B text decoder on the M1 GPU:
+
+```bash
+qwen35/first-run.sh --backend mlx --prompt 'What is 2 + 2?'
+qwen35/first-run.sh --backend tinygrad --beam 0 --prompt 'What is 2 + 2?'
+```
+
+See [qwen35/README.md](qwen35/README.md) for the pinned checkpoint,
+chat and thinking modes, GPU implementation, and timing scope.
+
 ### Bring-up and capture tools
 
 [experimental/asahi.py](experimental/asahi.py) contains the bring-up source.

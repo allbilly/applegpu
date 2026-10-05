@@ -1,0 +1,420 @@
+{
+  "status": "PASS",
+  "scope": "Cross-backend FP16 GPU generation on the same official checkpoint; no independent CPU/macOS reference.",
+  "model": "Qwen/Qwen3.5-0.8B",
+  "revision": "2fc06364715b967f1860aea9cf38778875588b17",
+  "shape": [
+    32,
+    248320
+  ],
+  "vocabulary_values_compared": 7946240,
+  "all_logits_finite": true,
+  "prompt_token_ids": [
+    248045,
+    846,
+    198,
+    3710,
+    369,
+    220,
+    17,
+    478,
+    220,
+    17,
+    30,
+    248046,
+    198,
+    248045,
+    74455,
+    198,
+    248068,
+    271,
+    248069,
+    271
+  ],
+  "generated_token_ids": [
+    760,
+    4087,
+    369,
+    2972,
+    19,
+    159034,
+    271,
+    623,
+    36352,
+    11,
+    279,
+    1324,
+    220,
+    17,
+    5346,
+    220,
+    17,
+    16327,
+    220,
+    19,
+    13,
+    1061,
+    369,
+    264,
+    15346,
+    7059,
+    303,
+    33633,
+    321,
+    369,
+    3428,
+    1429
+  ],
+  "identical_greedy_tokens": true,
+  "max_abs_logit_error": 0.044921875,
+  "rms_logit_error": 0.005831070709973574,
+  "per_prediction": [
+    {
+      "step": 0,
+      "argmax": 760,
+      "max_abs_error": 0.037109375,
+      "rms_error": 0.00753282755613327,
+      "correlation": 0.9999969529241027
+    },
+    {
+      "step": 1,
+      "argmax": 4087,
+      "max_abs_error": 0.0263671875,
+      "rms_error": 0.005765346810221672,
+      "correlation": 0.9999981999543506
+    },
+    {
+      "step": 2,
+      "argmax": 369,
+      "max_abs_error": 0.02734375,
+      "rms_error": 0.005754881538450718,
+      "correlation": 0.9999978854220667
+    },
+    {
+      "step": 3,
+      "argmax": 2972,
+      "max_abs_error": 0.03515625,
+      "rms_error": 0.005487549584358931,
+      "correlation": 0.9999978883366405
+    },
+    {
+      "step": 4,
+      "argmax": 19,
+      "max_abs_error": 0.029296875,
+      "rms_error": 0.0062592243775725365,
+      "correlation": 0.999997106371831
+    },
+    {
+      "step": 5,
+      "argmax": 159034,
+      "max_abs_error": 0.033203125,
+      "rms_error": 0.00538543751463294,
+      "correlation": 0.999997484827404
+    },
+    {
+      "step": 6,
+      "argmax": 271,
+      "max_abs_error": 0.03125,
+      "rms_error": 0.006369429640471935,
+      "correlation": 0.9999976435450768
+    },
+    {
+      "step": 7,
+      "argmax": 623,
+      "max_abs_error": 0.033203125,
+      "rms_error": 0.005692982114851475,
+      "correlation": 0.9999982671067442
+    },
+    {
+      "step": 8,
+      "argmax": 36352,
+      "max_abs_error": 0.02734375,
+      "rms_error": 0.005855362396687269,
+      "correlation": 0.9999981481513276
+    },
+    {
+      "step": 9,
+      "argmax": 11,
+      "max_abs_error": 0.03125,
+      "rms_error": 0.00783143937587738,
+      "correlation": 0.999997769330058
+    },
+    {
+      "step": 10,
+      "argmax": 279,
+      "max_abs_error": 0.03125,
+      "rms_error": 0.0056367674842476845,
+      "correlation": 0.9999979893812723
+    },
+    {
+      "step": 11,
+      "argmax": 1324,
+      "max_abs_error": 0.02734375,
+      "rms_error": 0.005210251081734896,
+      "correlation": 0.999998405866074
+    },
+    {
+      "step": 12,
+      "argmax": 220,
+      "max_abs_error": 0.03125,
+      "rms_error": 0.006567041855305433,
+      "correlation": 0.9999974940666316
+    },
+    {
+      "step": 13,
+      "argmax": 17,
+      "max_abs_error": 0.025390625,
+      "rms_error": 0.004693437367677689,
+      "correlation": 0.9999973766149165
+    },
+    {
+      "step": 14,
+      "argmax": 5346,
+      "max_abs_error": 0.03125,
+      "rms_error": 0.005769656505435705,
+      "correlation": 0.9999977393461392
+    },
+    {
+      "step": 15,
+      "argmax": 220,
+      "max_abs_error": 0.029296875,
+      "rms_error": 0.005249059293419123,
+      "correlation": 0.9999980866041228
+    },
+    {
+      "step": 16,
+      "argmax": 17,
+      "max_abs_error": 0.03125,
+      "rms_error": 0.006009404081851244,
+      "correlation": 0.9999967299962734
+    },
+    {
+      "step": 17,
+      "argmax": 16327,
+      "max_abs_error": 0.02734375,
+      "rms_error": 0.005771266296505928,
+      "correlation": 0.9999978255672228
+    },
+    {
+      "step": 18,
+      "argmax": 220,
+      "max_abs_error": 0.029296875,
+      "rms_error": 0.005501123145222664,
+      "correlation": 0.9999979441851421
+    },
+    {
+      "step": 19,
+      "argmax": 19,
+      "max_abs_error": 0.02490234375,
+      "rms_error": 0.004616770427674055,
+      "correlation": 0.9999975470178201
+    },
+    {
+      "step": 20,
+      "argmax": 13,
+      "max_abs_error": 0.029296875,
+      "rms_error": 0.005752266384661198,
+      "correlation": 0.9999977465679903
+    },
+    {
+      "step": 21,
+      "argmax": 1061,
+      "max_abs_error": 0.02734375,
+      "rms_error": 0.00547731202095747,
+      "correlation": 0.9999983154842754
+    },
+    {
+      "step": 22,
+      "argmax": 369,
+      "max_abs_error": 0.02734375,
+      "rms_error": 0.005414181388914585,
+      "correlation": 0.999998248356829
+    },
+    {
+      "step": 23,
+      "argmax": 264,
+      "max_abs_error": 0.027587890625,
+      "rms_error": 0.005210839211940765,
+      "correlation": 0.9999983073790183
+    },
+    {
+      "step": 24,
+      "argmax": 15346,
+      "max_abs_error": 0.025390625,
+      "rms_error": 0.005801588762551546,
+      "correlation": 0.9999985665264245
+    },
+    {
+      "step": 25,
+      "argmax": 7059,
+      "max_abs_error": 0.0234375,
+      "rms_error": 0.004821039270609617,
+      "correlation": 0.9999987752498316
+    },
+    {
+      "step": 26,
+      "argmax": 303,
+      "max_abs_error": 0.03173828125,
+      "rms_error": 0.006093389820307493,
+      "correlation": 0.9999979658649183
+    },
+    {
+      "step": 27,
+      "argmax": 33633,
+      "max_abs_error": 0.03125,
+      "rms_error": 0.005905125755816698,
+      "correlation": 0.9999979224637995
+    },
+    {
+      "step": 28,
+      "argmax": 321,
+      "max_abs_error": 0.02734375,
+      "rms_error": 0.005766913760453463,
+      "correlation": 0.9999979459620743
+    },
+    {
+      "step": 29,
+      "argmax": 369,
+      "max_abs_error": 0.0244140625,
+      "rms_error": 0.005484884139150381,
+      "correlation": 0.9999982648218119
+    },
+    {
+      "step": 30,
+      "argmax": 3428,
+      "max_abs_error": 0.044921875,
+      "rms_error": 0.007369016297161579,
+      "correlation": 0.9999976468345495
+    },
+    {
+      "step": 31,
+      "argmax": 1429,
+      "max_abs_error": 0.0234375,
+      "rms_error": 0.00510286632925272,
+      "correlation": 0.9999983840822143
+    }
+  ],
+  "generation_receipts": {
+    "mlx": {
+      "file": "generate-mlx-float16.json",
+      "sha256": "a58887fe2d0b2cb6536441f9bfef470fb2a257186130009d8ba98767bc8abfc5"
+    },
+    "tinygrad": {
+      "file": "generate-tinygrad-float16.json",
+      "sha256": "c6a2b85e2e9e0c9ef8f41b0d728512e27ef9d2d86ba479eca005ae634adec8d1"
+    }
+  },
+  "sources": {
+    "checkpoint.py": "67a1579faa7325f66386f64a06a1043af2a348f15a370a101a43a19ff6eedc33",
+    "mlx_backend.py": "ed8a590909154c1bc7957342dea71e3eced4f1fba687971cc2c01f38547cb3f4",
+    "tinygrad_backend.py": "40655a6a708838bfbce5c18b38c19c4fcad6322075e35794060358180a58b0d0",
+    "qwen35.py": "0176f812238ef60cff315b84c5c39bdc2e73b3ae85238b9871cc10e842f9a735",
+    "bootstrap.py": "8143413a658a17fef4a7beabdeb363c27554a55fbf3491b4e37b17550e8e5807"
+  },
+  "trace_summaries": {
+    "mlx": {
+      "file": "mlx-math.log",
+      "sha256": "91c254d17fe3c867a714f41b5a6002c22bfd94564563d8dd527b212243ce8ccf",
+      "gpu_dispatch_lines": 43518,
+      "cpu_dispatch_lines": null
+    },
+    "tinygrad": {
+      "file": "tinygrad-math.log",
+      "sha256": "34559aa0fcd22000506e7f160c9f77f7374c7282d3c9d2c3f3366118579f1b96",
+      "gpu_dispatch_lines": 18619,
+      "cpu_dispatch_lines": 0
+    }
+  },
+  "trace_note": "Full logs are retained locally and ignored by Git. MLX uses the pinned GPU-only omarchy build; tinygrad CL rows show GPU execution with zero CPU kernel rows. CPU device setup/staging is allowed.",
+  "timing_note": "Traced first-use generation, including compilation and TinyJit capture; not a warmed comparison.",
+  "timings": {
+    "mlx": {
+      "prefill_ms": 720.164123,
+      "decode": {
+        "samples": 31,
+        "raw_ms": [
+          220.43224,
+          216.222306,
+          233.428815,
+          239.693921,
+          230.45921,
+          234.955037,
+          220.466659,
+          235.490696,
+          241.875518,
+          233.479443,
+          271.196254,
+          216.302145,
+          237.055628,
+          214.904973,
+          219.290668,
+          217.706858,
+          225.773996,
+          230.126606,
+          230.391373,
+          238.126696,
+          229.525234,
+          223.564314,
+          212.509779,
+          221.685528,
+          222.165725,
+          250.251383,
+          262.330316,
+          248.893964,
+          241.926687,
+          234.700437,
+          235.742879
+        ],
+        "mean_ms": 231.95726735483873,
+        "median_ms": 230.45921,
+        "min_ms": 212.509779,
+        "max_ms": 271.196254,
+        "steps_per_second": 4.31113890676355
+      }
+    },
+    "tinygrad": {
+      "prefill_ms": 13678.702126,
+      "decode": {
+        "samples": 31,
+        "raw_ms": [
+          3665.433821,
+          1833.039571,
+          557.581476,
+          749.814053,
+          609.09331,
+          730.851803,
+          674.477952,
+          743.634893,
+          652.685488,
+          799.406008,
+          571.538411,
+          699.200968,
+          663.228558,
+          736.830204,
+          702.196981,
+          650.247126,
+          648.172697,
+          702.814592,
+          721.517039,
+          714.777186,
+          681.16301,
+          646.107476,
+          752.590764,
+          661.908664,
+          697.497764,
+          762.490596,
+          651.456348,
+          681.018087,
+          651.441348,
+          644.636992,
+          651.324925
+        ],
+        "mean_ms": 816.3928422903226,
+        "median_ms": 681.16301,
+        "min_ms": 557.581476,
+        "max_ms": 3665.433821,
+        "steps_per_second": 1.2249004991207206
+      }
+    }
+  }
+}

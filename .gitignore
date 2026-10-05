@@ -6,3 +6,5 @@
 .DS_Store
 gpt2/results/*.log
 gpt2/results/.work/
+qwen35/results/*.log
+qwen35/results/.work/
