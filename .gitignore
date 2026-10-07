@@ -8,3 +8,6 @@ gpt2/results/*.log
 gpt2/results/.work/
 qwen35/results/*.log
 qwen35/results/.work/
+qwen35/tests/__pycache__/
+gpt2/tools/__pycache__/
+qwen35/tools/__pycache__/

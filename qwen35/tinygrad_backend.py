@@ -103,8 +103,10 @@ class DeltaNet:
         q, k, v = (mixed[:, :, i * 2048:(i + 1) * 2048].reshape(1, width, 16, 128) for i in range(3))
         def normalized(t, scale):
             value = t.cast(dtypes.float32)
-            return ((value * (value.square().mean(-1, keepdim=True) + 1e-6).rsqrt()).cast(t.dtype) * scale).realize()
-        q, k = normalized(q, 1 / 128), normalized(k, 1 / math.sqrt(128))
+            # Transformers adds epsilon to the L2 sum, not the mean. Keep
+            # normalized q/k in FP32 through the recurrent-state update.
+            return (value * (value.square().sum(-1, keepdim=True) + 1e-6).rsqrt() * scale).realize()
+        q, k = normalized(q, 1 / math.sqrt(128)), normalized(k, 1)
         beta = self.in_proj_b(x).sigmoid().cast(dtypes.float32).realize()
         a = self.in_proj_a(x).cast(dtypes.float32) + self.dt_bias
         softplus = a.maximum(0) + ((-a.abs()).exp() + 1).log()
@@ -208,6 +210,7 @@ class Backend:
             tinygrad_version=importlib.metadata.version("tinygrad"),
             tinygrad_commit="ccae837c70301e3dab3ba8ea4db454249ad8f7e8",
             parameter_devices=learned_devices, text_parameters=count, recurrent_layers=18, full_attention_layers=6,
+            delta_qk_normalization="FP32 L2 sum + 1e-6; query scaled by head_dim**-0.5",
             recurrence="OpenCL tensor operations; FP32 recurrent state", prefill_jit=True)
 
     def reset(self):

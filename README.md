@@ -1,5 +1,17 @@
 # AppleGPU
 
+Apple GPU experiments with macOS IOKit replay and Asahi Linux DRM execution.
+On Linux, start with the [Asahi examples and inference runners](#asahi-linux).
+
+Inference stays at example scale: one pinned model, one prompt, and a short
+greedy generation loop. Keep the loading, GPU execution and result checks
+readable within each example. Setup, verification and timing commands are
+optional tools for reproducing and checking the examples.
+Each model's generation entry point, checkpoint loader and backends stay
+together; its CPU references and benchmark workers live in `tools/`.
+
+## macOS
+
 ```bash
 uv venv --python '>=3.10'
 uv run examples/add.py
@@ -35,6 +47,27 @@ make capture-tri standalone-tri  # triangle
 ```
 
 ## Asahi Linux
+
+Check this machine's native-example target without submitting GPU commands:
+
+```bash
+python3 experimental/check_asahi.py
+python3 experimental/check_asahi.py --run --output /tmp/applegpu-asahi-check.json
+python3 experimental/check_asahi.py --compare /tmp/applegpu-asahi-check.json
+```
+
+The checker uses only the Python standard library. `READY` means the Asahi
+DRM parameter query succeeded and the GPU matches M1 G13G A0/B1 (T8103).
+`--run` requires three agreeing GPU executions of each standalone example
+by default, in separate processes, and stops on the first failure. It shares
+the inference runners' GPU locks. Only completed fences
+and exact output matches produce `PASS`. JSON receipts record the GPU,
+kernel, Python version and source hashes; `--compare` reports changes without
+treating them as execution failures. This check covers the native examples;
+the inference backends have their own dependency and correctness checks.
+
+The [2026-10-07 receipt](experimental/dumps/asahi_check/result.json) records
+nine passing native runs on the M1 MacBook Air, G13G B1, kernel `7.1.13+`.
 
 Standalone Python examples, standard library and direct DRM ioctls only:
 
@@ -75,10 +108,12 @@ Run the official Qwen3.5-0.8B text decoder on the M1 GPU:
 ```bash
 qwen35/first-run.sh --backend mlx --prompt 'What is 2 + 2?'
 qwen35/first-run.sh --backend tinygrad --beam 0 --prompt 'What is 2 + 2?'
+qwen35/first-run.sh verify --backend mlx --context 64 --steps 4
+qwen35/first-run.sh benchmark --backend all --context 64 --steps 8 --trials 3
 ```
 
 See [qwen35/README.md](qwen35/README.md) for the pinned checkpoint,
-chat and thinking modes, GPU implementation, and timing scope.
+chat and thinking modes, independent numerical checks and warmed timings.
 
 ### Bring-up and capture tools
 
@@ -97,6 +132,29 @@ Regenerate the standalone examples after changing the bring-up source:
 ```bash
 python3 experimental/asahi2standalone.py
 ```
+
+### Learning from AGXForge
+
+[AGXForge](https://github.com/sbryngelson/AGXForge) is a useful research
+reference, but its compiler emits M5/G17 instructions and its runtimes use
+macOS Metal or private IOGPU interfaces. This machine is M1/G13G with Linux
+DRM. Its G17 binaries, tensor instructions, launch packets and Apple decoder
+cannot be used by these Asahi examples. Even its compiler release checks
+require Apple's macOS `GPUCompiler.framework`.
+
+The lessons that fit these minimal examples are reproducibility, correctness
+and clear measurements:
+
+| AGXForge source | Application here |
+| --- | --- |
+| `tools/g17platform.py`, `docs/execution-validation.md` | Record the actual target and require completed results. `experimental/check_asahi.py` checks the small native examples repeatedly; they already check output sentinels, command layouts and fences. |
+| `docs/demonstrations.md` | Compare results with an independent CPU reference. Qwen's optional `verify` check exposed and corrected a shared DeltaNet normalization error. |
+| `examples/decode_study.py`, `tools/g17twin.py` | Separate first-use compilation from warmed execution and use identical inputs. GPT-2's comparator and Qwen's optional `benchmark` use shared CPU token histories and rotating backend order. |
+
+Borrow a kernel idea only when it can be shown as a small, readable example
+with a checked result. AGXForge's general inference graph and optimized
+kernel collection belong in that project. The checks and timing tools here
+support the examples rather than setting an inference-engine roadmap.
 
 # Environment
 

@@ -14,7 +14,9 @@ import subprocess
 import sys
 import time
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common import ROOT, WEIGHT_SHA256, cache_root, checkpoint, sha256
+from verify import source_hashes
 
 
 def main():
@@ -37,12 +39,13 @@ def main():
     output = output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     started = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    identity = sha256(ROOT / "reference.py") + sha256(ROOT / "common.py")
+    wanted_sources = {str(p.relative_to(ROOT)): sha256(p) for p in
+                      (ROOT / "tools/reference.py", ROOT / "common.py", ROOT / "bpe.py")}
+    identity = sha256(ROOT / "tools/reference.py") + sha256(ROOT / "common.py") + sha256(ROOT / "bpe.py")
     reference = cache_root() / f"reference-{args.dtype}-{args.steps}-{'-'.join(map(str, args.lengths))}-{identity[:12]}"
     trace_path = reference / "trace.json"
-    wanted_sources = {n: sha256(ROOT / n) for n in ("reference.py", "common.py")}
     if not trace_path.is_file() or json.loads(trace_path.read_text()).get("source_sha256") != wanted_sources:
-        subprocess.run([sys.executable, str(ROOT / "reference.py"), "--weights", str(source),
+        subprocess.run([sys.executable, str(ROOT / "tools/reference.py"), "--weights", str(source),
                         "--dtype", args.dtype, "--steps", str(args.steps), "--lengths", *map(str, args.lengths),
                         "--output", str(reference)], check=True, timeout=600)
     modes = [("mlx", 0)] + [("tinygrad", b) for b in dict.fromkeys(args.beams)]
@@ -50,7 +53,7 @@ def main():
     logs = output.parent / ".work" / output.stem
     logs.mkdir(parents=True, exist_ok=True)
     order = []
-    worker_sources = {p.name: sha256(p) for p in ROOT.glob("*.py") if p.name != "compare.py"}
+    worker_sources = {k: v for k, v in source_hashes().items() if k != "tools/compare.py"}
     reference_hashes = {n: sha256(reference / n) for n in ("trace.json", "logits.npz")}
     for trial in range(args.trials):
         rotated = modes[trial % len(modes):] + modes[:trial % len(modes)]
@@ -67,7 +70,7 @@ def main():
                 if (previous["status"] == "PASS" and previous["backend"] == backend and previous["beam"] == beam
                         and previous["dtype"] == args.dtype and previous["reference_sha256"] == reference_hashes
                         and proof["kernel"] == platform.release() and libraries_match
-                        and {k: v for k, v in proof["runner_sources"].items() if k != "compare.py"} == worker_sources
+                        and {k: v for k, v in proof["runner_sources"].items() if k != "tools/compare.py"} == worker_sources
                         and (backend != "tinygrad" or proof["runtime"]["beam_estimate"] == int(os.environ.get("BEAM_ESTIMATE", "1")))
                         and [c["prompt_tokens"] for c in previous["cases"]] == args.lengths
                         and all(len(c["trials"]) == 1 and c["trials"][0]["decode"]["samples"] == args.steps
@@ -79,7 +82,7 @@ def main():
                 records[label].append(record)
                 print(f"Trial {trial + 1}/{args.trials}: {label}: reused verified worker", flush=True)
                 continue
-            command = [sys.executable, str(ROOT / "gpt2.py"), "worker", "--backend", backend,
+            command = [sys.executable, str(ROOT / "tools/verify.py"), "worker", "--backend", backend,
                        "--beam", str(beam), "--dtype", args.dtype, "--reference", str(reference),
                        "--weights", str(source), "--steps", str(args.steps), "--trials", "1",
                        "--warmups", "2", "--output", str(result_path)]
@@ -129,7 +132,7 @@ def main():
                   resumed_workers=sum(item["reused"] for item in order),
                   timing_scope="Completed GPU model execution, KV update, GPU argmax and one-token host read; excludes model loading, first compilation, BEAM tuning, full-logit validation and detokenization",
                   comparison_scope="Same M1 GPU, stock Mesa, checkpoint, parameter dtype, prompt and teacher-forced decode tokens. Backend graph lowering and KV cache implementations differ.",
-                  command=sys.argv, source_sha256={p.name: sha256(p) for p in ROOT.glob("*.py")})
+                  command=sys.argv, source_sha256=source_hashes())
     output.write_text(json.dumps(report, indent=2) + "\n")
     print("\nMode                     Prompt    Prefill ms    Prefill tok/s    Decode tok/s", flush=True)
     for label, summary in summaries.items():

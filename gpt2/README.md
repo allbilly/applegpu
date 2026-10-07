@@ -9,6 +9,12 @@ Both use the original Hugging Face checkpoint already cached by `~/ane/gpt2`,
 the GPT-2 BPE tokenizer, a KV cache, and greedy generation. The default precision
 is FP32. Inference kernels compile on Linux from the framework graphs.
 
+The example's generation loop is in [gpt2.py](gpt2.py), model loading and
+tokenization in [common.py](common.py), and GPU execution in the two
+`*_backend.py` files. Optional CPU verification and benchmark workers live
+in `tools/`. The launcher keeps the same generation, `verify` and `compare`
+commands; generation imports no CPU decoder or benchmark worker.
+
 ## Run
 
 From `~/applegpu`:

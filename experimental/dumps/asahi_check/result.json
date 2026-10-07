@@ -1,0 +1,196 @@
+{
+  "schema_version": 1,
+  "timestamp_utc": "2026-10-07T10:14:51.247032+00:00",
+  "status": "PASS",
+  "gpu_tests_requested": true,
+  "checks": [
+    {
+      "workload": "add",
+      "repetition": 1,
+      "command": [
+        "/usr/bin/python3",
+        "/home/asahi/applegpu/examples/add_asahi.py",
+        "--device",
+        "/dev/dri/renderD128",
+        "--trace",
+        "0",
+        "--timeout",
+        "5"
+      ],
+      "returncode": 0,
+      "stdout": "add: PASS [11.0, 22.0, 33.0, 44.0]",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "workload": "add",
+      "repetition": 2,
+      "command": [
+        "/usr/bin/python3",
+        "/home/asahi/applegpu/examples/add_asahi.py",
+        "--device",
+        "/dev/dri/renderD128",
+        "--trace",
+        "0",
+        "--timeout",
+        "5"
+      ],
+      "returncode": 0,
+      "stdout": "add: PASS [11.0, 22.0, 33.0, 44.0]",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "workload": "add",
+      "repetition": 3,
+      "command": [
+        "/usr/bin/python3",
+        "/home/asahi/applegpu/examples/add_asahi.py",
+        "--device",
+        "/dev/dri/renderD128",
+        "--trace",
+        "0",
+        "--timeout",
+        "5"
+      ],
+      "returncode": 0,
+      "stdout": "add: PASS [11.0, 22.0, 33.0, 44.0]",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "workload": "mul",
+      "repetition": 1,
+      "command": [
+        "/usr/bin/python3",
+        "/home/asahi/applegpu/examples/mul_asahi.py",
+        "--device",
+        "/dev/dri/renderD128",
+        "--trace",
+        "0",
+        "--timeout",
+        "5"
+      ],
+      "returncode": 0,
+      "stdout": "mul: PASS [10.0, 40.0, 90.0, 160.0]",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "workload": "mul",
+      "repetition": 2,
+      "command": [
+        "/usr/bin/python3",
+        "/home/asahi/applegpu/examples/mul_asahi.py",
+        "--device",
+        "/dev/dri/renderD128",
+        "--trace",
+        "0",
+        "--timeout",
+        "5"
+      ],
+      "returncode": 0,
+      "stdout": "mul: PASS [10.0, 40.0, 90.0, 160.0]",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "workload": "mul",
+      "repetition": 3,
+      "command": [
+        "/usr/bin/python3",
+        "/home/asahi/applegpu/examples/mul_asahi.py",
+        "--device",
+        "/dev/dri/renderD128",
+        "--trace",
+        "0",
+        "--timeout",
+        "5"
+      ],
+      "returncode": 0,
+      "stdout": "mul: PASS [10.0, 40.0, 90.0, 160.0]",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "workload": "tri",
+      "repetition": 1,
+      "command": [
+        "/usr/bin/python3",
+        "/home/asahi/applegpu/examples/tri_asahi.py",
+        "--device",
+        "/dev/dri/renderD128",
+        "--trace",
+        "0",
+        "--timeout",
+        "5"
+      ],
+      "returncode": 0,
+      "stdout": "tri: PASS 8x8 red triangle, all 64 RGBA8 pixels checked",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "workload": "tri",
+      "repetition": 2,
+      "command": [
+        "/usr/bin/python3",
+        "/home/asahi/applegpu/examples/tri_asahi.py",
+        "--device",
+        "/dev/dri/renderD128",
+        "--trace",
+        "0",
+        "--timeout",
+        "5"
+      ],
+      "returncode": 0,
+      "stdout": "tri: PASS 8x8 red triangle, all 64 RGBA8 pixels checked",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "workload": "tri",
+      "repetition": 3,
+      "command": [
+        "/usr/bin/python3",
+        "/home/asahi/applegpu/examples/tri_asahi.py",
+        "--device",
+        "/dev/dri/renderD128",
+        "--trace",
+        "0",
+        "--timeout",
+        "5"
+      ],
+      "returncode": 0,
+      "stdout": "tri: PASS 8x8 red triangle, all 64 RGBA8 pixels checked",
+      "stderr": "",
+      "passed": true
+    }
+  ],
+  "platform": {
+    "system": "Linux",
+    "kernel": "7.1.13+",
+    "architecture": "aarch64",
+    "python": "3.14.7",
+    "cpu_page_bytes": 16384,
+    "model": "Apple MacBook Air (M1, 2020)",
+    "gpu": {
+      "generation": 13,
+      "variant": 71,
+      "revision": 17,
+      "chip_id": 33027,
+      "clusters": 1,
+      "cores_per_cluster": 8
+    }
+  },
+  "source_sha256": {
+    "experimental/check_asahi.py": "82b224f14ba68f301ddd83cb09e11fc0713903e7c25618f9268dd49e5c07ad12",
+    "experimental/asahi.py": "e48743e523aef02e25ac65f7ced593a19d9ce59dc7426bd9ec171058cde36c26",
+    "examples/add_asahi.py": "db6e59c426321c7265e0df18f7f98e37f18ff9cbe06c8c7274715ae58c9604fd",
+    "examples/mul_asahi.py": "5f3a41078ac68e6d8ebae93eeaaa13af2c61f38db2df1a55c3793cd444ba802c",
+    "examples/tri_asahi.py": "8e31a1782d1fe189b95bad5edf81592002a3c289357fcd768c04e158a6189860"
+  },
+  "device": "/dev/dri/renderD128",
+  "native_target_supported": true,
+  "scope": "Completed DRM fences and exact outputs for ADD, MUL and TRI; does not validate inference or measure GPU performance"
+}

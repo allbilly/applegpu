@@ -18,10 +18,15 @@ import numpy as np
 from checkpoint import FILES, MODEL_ID, REVISION, ROOT, checkpoint, sha256, tokenizer
 
 sys.path.insert(0, str(ROOT.parent / "gpt2"))
-from gpt2 import gpu_lock, machine_state, stats
+from run_utils import gpu_lock, machine_state, stats
 sys.path.pop(0)
 
-SOURCE_HASHES = {p.name: sha256(p) for p in ROOT.glob("*.py")}
+def source_hashes():
+    paths = list(ROOT.glob("*.py")) + [ROOT.parent / "gpt2/run_utils.py"]
+    return {str(p.relative_to(ROOT.parent)): sha256(p) for p in paths}
+
+
+SOURCE_HASHES = source_hashes()
 
 
 def base_commit():
@@ -104,7 +109,7 @@ def main():
             if text.startswith(printed):
                 print(text[len(printed):], end="")
             print(flush=True)
-            if SOURCE_HASHES != {p.name: sha256(p) for p in ROOT.glob("*.py")}:
+            if SOURCE_HASHES != source_hashes():
                 raise RuntimeError("runner source changed during execution; rerun with stable sources")
             if logits and not all(np.isfinite(vector).all() for vector in logits):
                 raise RuntimeError("model produced nonfinite logits")

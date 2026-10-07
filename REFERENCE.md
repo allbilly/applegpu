@@ -2,6 +2,7 @@ reference repos
 - dougallj/applegpu
 - Atomics-hub/agx-research
 - AsahiLinux/gpu
+- sbryngelson/AGXForge (M5/G17 compiler and macOS runtime; portable algorithm and validation ideas)
 
 - intel-lgci-fdo-gitlab-mirror/mesa.mesa
 - AsahiLinux/linux

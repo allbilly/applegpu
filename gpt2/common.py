@@ -1,13 +1,11 @@
-"""Shared GPT-2 checkpoint, tokenizer and independent NumPy reference."""
+"""Pinned GPT-2 checkpoint and tokenizer for the minimal example."""
 
 import hashlib
-import json
 import os
 from pathlib import Path
 import tempfile
 import urllib.request
 
-import numpy as np
 from safetensors.numpy import load_file
 
 from bpe import Tokenizer
@@ -79,59 +77,3 @@ def load_state(path):
 
 def tokenizer():
     return Tokenizer(ROOT / "tokenizer")
-
-
-class Reference:
-    """FP32 activation math; parameters rounded to the requested GPU storage dtype."""
-
-    def __init__(self, state, dtype="float32"):
-        self.state = {k: np.asarray(v, dtype=dtype).astype(np.float32, copy=False) for k, v in state.items()}
-        self.reset()
-
-    def reset(self):
-        self.position = 0
-        self.keys = np.empty((12, 12, 1024, 64), dtype=np.float32)
-        self.values = np.empty_like(self.keys)
-
-    def norm(self, x, prefix):
-        centered = x - x.mean(axis=-1, keepdims=True)
-        return (centered / np.sqrt((centered * centered).mean(axis=-1, keepdims=True) + np.float32(1e-5))
-                * self.state[prefix + ".weight"] + self.state[prefix + ".bias"])
-
-    def linear(self, x, prefix):
-        return x @ self.state[prefix + ".weight"] + self.state[prefix + ".bias"]
-
-    def step(self, token):
-        if self.position >= 1024 or not 0 <= token < 50257:
-            raise ValueError("invalid token or exhausted context")
-        pos = self.position
-        x = self.state["wte.weight"][token] + self.state["wpe.weight"][pos]
-        for i in range(12):
-            p = f"h.{i}"
-            q, k, v = np.split(self.linear(self.norm(x, p + ".ln_1"), p + ".attn.c_attn"), 3)
-            self.keys[i, :, pos] = k.reshape(12, 64)
-            self.values[i, :, pos] = v.reshape(12, 64)
-            scores = np.einsum("htd,hd->ht", self.keys[i, :, :pos + 1], q.reshape(12, 64)) * np.float32(0.125)
-            probability = np.exp(scores - scores.max(axis=-1, keepdims=True))
-            probability /= probability.sum(axis=-1, keepdims=True)
-            attended = np.einsum("ht,htd->hd", probability, self.values[i, :, :pos + 1]).reshape(768)
-            x = x + self.linear(attended, p + ".attn.c_proj")
-            z = self.linear(self.norm(x, p + ".ln_2"), p + ".mlp.c_fc")
-            z = np.float32(0.5) * z * (np.float32(1) + np.tanh(
-                np.float32(np.sqrt(2 / np.pi)) * (z + np.float32(0.044715) * z * z * z)))
-            x = x + self.linear(z, p + ".mlp.c_proj")
-        self.position += 1
-        return self.state["wte.weight"] @ self.norm(x, "ln_f")
-
-
-def accuracy(actual, expected):
-    a, b = np.asarray(actual, dtype=np.float64), np.asarray(expected, dtype=np.float64)
-    if a.shape != (50257,) or not np.isfinite(a).all():
-        raise ValueError("GPU returned invalid logits")
-    log_a, log_b = a - a.max(), b - b.max()
-    log_a -= np.log(np.exp(log_a).sum())
-    log_b -= np.log(np.exp(log_b).sum())
-    return dict(top1=int(a.argmax()), reference_top1=int(b.argmax()),
-                max_abs_error=float(np.abs(a - b).max()),
-                normalized_rmse=float(np.linalg.norm(a - b) / max(np.linalg.norm(b), 1e-9)),
-                kl_reference_to_gpu=float(max(0, (np.exp(log_b) * (log_b - log_a)).sum())))
