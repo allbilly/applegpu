@@ -163,13 +163,8 @@ def emit_dataclass_init(obj, *, omit_defaults: bool = True) -> str:
         val = getattr(obj, f.name)
         if f.name in ("raw_tail", "raw") and isinstance(val, bytes):
             continue
-        if omit_defaults:
-            if val in (0, "", b""):
-                continue
-            if f.name == "resource_class" and val == 1:
-                continue
-            if f.name == "cookie_flags" and val == 1:
-                continue
+        if omit_defaults and val == f.default:
+            continue
         parts.append(f"{f.name}={repr_value(val)}")
     if not parts:
         return f"{type(obj).__name__}()"
@@ -388,6 +383,7 @@ import ctypes
 import ctypes.util
 import base64
 import os
+import platform
 import struct
 import sys
 import time
@@ -787,7 +783,8 @@ def execute_op(
     event = trace_event()
     if isinstance(op, CallOp):
         raw = op.pack_struct_in()
-        buf = bytearray(raw) if raw else bytearray()
+        prepared = prepare_call_struct(op.selector, raw)
+        buf = bytearray(prepared) if prepared else bytearray()
         patched = addr_map.patch_u64_buf(buf) if buf else []
         name = SELECTOR_NAMES.get(op.selector, f"SEL_0x{{op.selector:02x}}")
         input_summary = describe_call_input(op.selector, op.scalars, op.struct_in)
@@ -798,6 +795,11 @@ def execute_op(
             event=event,
         )
         trace("ARGS", describe_struct(op.struct_in), event=event, level=2)
+        if prepared != raw:
+            trace(
+                "PATCH", "macOS 27 QUEUE_CREATE tail: (0xffffffff, 1) -> (1, 0)",
+                event=event,
+            )
         if patched:
             details = ", ".join(
                 f"+0x{{off:x}} 0x{{old:x}}->0x{{new:x}}"

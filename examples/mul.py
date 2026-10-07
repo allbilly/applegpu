@@ -4,12 +4,13 @@
 Workload: out[i] = a[i] * b[i] for 4 float elements (metal_mul capture).
 Restores captured mappings, submits the decoded IOGPU sequence, then validates the CPU-visible result.
 """
-# generated from mul.cap — do not edit OPS by hand (2026-09-04 14:42 UTC)
+# generated from mul.cap — do not edit OPS by hand (2026-10-07 13:42 UTC)
 
 import ctypes
 import ctypes.util
 import base64
 import os
+import platform
 import struct
 import sys
 import time
@@ -593,6 +594,19 @@ AGX_NAMES = (
 )
 
 
+def prepare_call_struct(selector: int, struct_in: bytes | None) -> bytes | None:
+    """Translate the legacy queue tail to the layout captured on macOS 27."""
+    if (
+        selector == 0x07
+        and struct_in is not None
+        and len(struct_in) == 0x410
+        and struct_in[0x408:] == b"\xff\xff\xff\xff\x01\x00\x00\x00"
+        and int(platform.mac_ver()[0].split(".")[0] or "0") >= 27
+    ):
+        return struct_in[:0x408] + b"\x01\x00\x00\x00\x00\x00\x00\x00"
+    return struct_in
+
+
 class IOKit:
     def __init__(self) -> None:
         path = ctypes.util.find_library("IOKit")
@@ -678,6 +692,7 @@ class IOKit:
         scalar_out_cnt: int,
         struct_out_sz: int,
     ) -> tuple[int, list[int], bytes, int]:
+        struct_in = prepare_call_struct(selector, struct_in)
         n_in = len(scal_in)
         scal_in_arr = (ctypes.c_uint64 * n_in)(*scal_in) if n_in else None
 
@@ -899,35 +914,35 @@ OPS = [
     CallOp(  # op 1: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(type_version=0x10001, create_flags=0x1000101, alloc_size=33840, heap_flags=0x10000, stride_or_count=0x38000000, create_info=24),
+        struct_in=ResourceCreateIn(alloc_size=33840, heap_flags=0x10000, stride_or_count=0x38000000, create_info=24),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(gpu_va=0x104f78000, gpu_va2=0x104f640c0, slot_index=1, heap_size=0x10000, cookie=0x6f1004d5, type_tag=0x8fa0e, out_heap_flags=0x10000),
     ),
     CallOp(  # op 2: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(type_version=0x10001, create_flags=0x1000101, alloc_size=1136, suballoc_flag=1, heap_flags=0x20000, backing_ptr=0x10fcd4be0),
+        struct_in=ResourceCreateIn(alloc_size=1136, suballoc_flag=1, heap_flags=0x20000, backing_ptr=0x10fcd4be0),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid_tag=21, gpu_va=0x104fa8000, gpu_va2=0x104f64180, slot_index=2, heap_size=0x20000, cookie=0x6f1004ee, type_tag=0x8fa0f, out_heap_flags=0x20000),
     ),
     CallOp(  # op 3: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x104fa8000, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, backing_ptr=0x10fcd4be0),
+        struct_in=ResourceCreateIn(parent_handle=128, alloc_size=3120, parent_gpu_va=0x104fa8000, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, backing_ptr=0x10fcd4be0),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid_tag=21, gpu_va2=0x104f64240, slot_index=3, heap_size=0x20000, cookie=0x6f1004ef, type_tag=0x8fa0f, out_heap_flags=0x20000),
     ),
     CallOp(  # op 4: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x104fa8100, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, backing_ptr=0x10fcd4be0),
+        struct_in=ResourceCreateIn(parent_handle=128, alloc_size=3120, parent_gpu_va=0x104fa8100, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, backing_ptr=0x10fcd4be0),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid=256, rid_tag=21, gpu_va2=0x104f64300, slot_index=4, heap_size=0x20000, cookie=0x6f1004f0, type_tag=0x8fa0f, out_heap_flags=0x1ff00),
     ),
     CallOp(  # op 5: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x104fa8200, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2),
+        struct_in=ResourceCreateIn(parent_handle=128, alloc_size=3120, parent_gpu_va=0x104fa8200, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid=512, rid_tag=21, gpu_va2=0x104f643c0, slot_index=5, heap_size=0x20000, cookie=0x6f1004f1, type_tag=0x8fa0f, out_heap_flags=0x1fe00),
     ),
@@ -936,20 +951,20 @@ OPS = [
     CallOp(  # op 6: QUEUE_CREATE
         selector=sel.QUEUE_CREATE,
         scalars=[],
-        struct_in=QueueCreateIn(exe_path='metal_mul', queue_flags=2, unk_mask=0xffffffff, enable=1),
+        struct_in=QueueCreateIn(exe_path='metal_mul'),
         struct_out_sz=16,
         cap_out=QueueCreateOut(queue_id=1, cookie=0x6f1004f2),
     ),
     CallOp(  # op 7: NOTIF_QUEUE
         selector=sel.NOTIF_QUEUE,
-        scalars=NotifQueueIn(ring_size=256, ring_flags=40).as_scalars(),
+        scalars=NotifQueueIn().as_scalars(),
         struct_in=None,
         struct_out_sz=16,
         cap_out=NotifQueueOut(ring_address=0x104fc8000, queue_id=1),
     ),
     CallOp(  # op 8: QUEUE_FINALIZE
         selector=sel.QUEUE_FINALIZE,
-        scalars=QueueFinalizeIn(arg0=1, arg1=1).as_scalars(),
+        scalars=QueueFinalizeIn().as_scalars(),
         struct_in=None,
         struct_out_sz=0,
     ),
@@ -958,91 +973,91 @@ OPS = [
     CallOp(  # op 9: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x104fa8300, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, create_info=24, backing_ptr=0x10fcd54a0),
+        struct_in=ResourceCreateIn(parent_handle=128, alloc_size=3120, parent_gpu_va=0x104fa8300, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, create_info=24, backing_ptr=0x10fcd54a0),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid=768, rid_tag=21, gpu_va2=0x104f64480, slot_index=6, heap_size=0x20000, cookie=0x6f1004f6, type_tag=0x8fa0f, out_heap_flags=0x1fd00),
     ),
     CallOp(  # op 10: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x104fa8500, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, create_info=24, backing_ptr=0x10fcd54a0),
+        struct_in=ResourceCreateIn(parent_handle=128, alloc_size=3120, parent_gpu_va=0x104fa8500, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, create_info=24, backing_ptr=0x10fcd54a0),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid=1280, rid_tag=21, gpu_va2=0x104f64540, slot_index=7, heap_size=0x20000, cookie=0x6f1004f7, type_tag=0x8fa0f, out_heap_flags=0x1fb00),
     ),
     CallOp(  # op 11: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x104fa8700, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, create_info=24, backing_ptr=0x10fcd54a0),
+        struct_in=ResourceCreateIn(parent_handle=128, alloc_size=3120, parent_gpu_va=0x104fa8700, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, create_info=24, backing_ptr=0x10fcd54a0),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid=1792, rid_tag=21, gpu_va2=0x104f64600, slot_index=8, heap_size=0x20000, cookie=0x6f1004f8, type_tag=0x8fa0f, out_heap_flags=0x1f900),
     ),
     CallOp(  # op 12: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x104fa8800, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, create_info=24, backing_ptr=0xa2709e210),
+        struct_in=ResourceCreateIn(parent_handle=128, alloc_size=3120, parent_gpu_va=0x104fa8800, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, create_info=24, backing_ptr=0xa2709e210),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid=2048, rid_tag=21, gpu_va2=0x104f646c0, slot_index=9, heap_size=0x20000, cookie=0x6f1004f9, type_tag=0x8fa0f, out_heap_flags=0x1f800),
     ),
     CallOp(  # op 13: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x104faa800, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, create_info=24, backing_ptr=0xa2709e298),
+        struct_in=ResourceCreateIn(parent_handle=128, alloc_size=3120, parent_gpu_va=0x104faa800, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, create_info=24, backing_ptr=0xa2709e298),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid=10240, rid_tag=21, gpu_va2=0x104f64780, slot_index=10, heap_size=0x20000, cookie=0x6f1004fa, type_tag=0x8fa0f, out_heap_flags=0x1d800),
     ),
     CallOp(  # op 14: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x104faa900, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, create_info=24, backing_ptr=0xa2709e5b8),
+        struct_in=ResourceCreateIn(parent_handle=128, alloc_size=3120, parent_gpu_va=0x104faa900, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, create_info=24, backing_ptr=0xa2709e5b8),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid=10496, rid_tag=21, gpu_va2=0x104f64840, slot_index=11, heap_size=0x20000, cookie=0x6f1004fb, type_tag=0x8fa0f, out_heap_flags=0x1d700),
     ),
     CallOp(  # op 15: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x104fab900, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, create_info=24, backing_ptr=0xa2709e8d8),
+        struct_in=ResourceCreateIn(parent_handle=128, alloc_size=3120, parent_gpu_va=0x104fab900, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, create_info=24, backing_ptr=0xa2709e8d8),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid=14592, rid_tag=21, gpu_va2=0x104f64900, slot_index=12, heap_size=0x20000, cookie=0x6f1004fc, type_tag=0x8fa0f, out_heap_flags=0x1c700),
     ),
     CallOp(  # op 16: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x104faba00, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, create_info=24, backing_ptr=0xa2709ebe0),
+        struct_in=ResourceCreateIn(parent_handle=128, alloc_size=3120, parent_gpu_va=0x104faba00, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, create_info=24, backing_ptr=0xa2709ebe0),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid=14848, rid_tag=21, gpu_va2=0x104f649c0, slot_index=13, heap_size=0x20000, cookie=0x6f1004fd, type_tag=0x8fa0f, out_heap_flags=0x1c600),
     ),
     CallOp(  # op 17: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x104fabb00, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, create_info=24, backing_ptr=0xa2709eee8),
+        struct_in=ResourceCreateIn(parent_handle=128, alloc_size=3120, parent_gpu_va=0x104fabb00, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, create_info=24, backing_ptr=0xa2709eee8),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid=15104, rid_tag=21, gpu_va2=0x104f64a80, slot_index=14, heap_size=0x20000, cookie=0x6f1004fe, type_tag=0x8fa0f, out_heap_flags=0x1c500),
     ),
     CallOp(  # op 18: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(type_version=0x10001, create_flags=0x1000101, alloc_size=1072, heap_flags=0x10000, stride_or_count=0x8000000, create_info=24),
+        struct_in=ResourceCreateIn(alloc_size=1072, heap_flags=0x10000, stride_or_count=0x8000000, create_info=24),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid=0x28000, rid_tag=21, gpu_va=0x104fcc000, gpu_va2=0x104f64b40, slot_index=15, heap_size=0x10000, cookie=0x6f1004ff, type_tag=0x8fa13, out_heap_flags=0x10000),
     ),
     CallOp(  # op 19: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x104fabc00, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, create_info=24, backing_ptr=0x10fcd4be0),
+        struct_in=ResourceCreateIn(parent_handle=128, alloc_size=3120, parent_gpu_va=0x104fabc00, parent_gpu_va2=0x104fa8000, heap_flags=0x20000, heap_lane=2, create_info=24, backing_ptr=0x10fcd4be0),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid=15360, rid_tag=21, gpu_va2=0x104f64c00, slot_index=16, heap_size=0x20000, cookie=0x6f100500, type_tag=0x8fa0f, out_heap_flags=0x1c400),
     ),
     CallOp(  # op 20: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(type_version=0x10001, create_flags=0x1000101, alloc_size=1136, suballoc_flag=1, heap_flags=0x20000, backing_ptr=0x10fcd4be0),
+        struct_in=ResourceCreateIn(alloc_size=1136, suballoc_flag=1, heap_flags=0x20000, backing_ptr=0x10fcd4be0),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid=0x40000, rid_tag=21, gpu_va=0x104fdc000, gpu_va2=0x104f64cc0, slot_index=17, heap_size=0x20000, cookie=0x6f100501, type_tag=0x8fa14, out_heap_flags=0x20000),
     ),
     CallOp(  # op 21: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(parent_handle=128, type_version=0x10001, create_flags=0x1000101, alloc_size=3120, parent_gpu_va=0x104fdc000, parent_gpu_va2=0x104fdc000, heap_flags=0x20000, heap_lane=17, create_info=24, backing_ptr=0xa2709c000),
+        struct_in=ResourceCreateIn(parent_handle=128, alloc_size=3120, parent_gpu_va=0x104fdc000, parent_gpu_va2=0x104fdc000, heap_flags=0x20000, heap_lane=17, create_info=24, backing_ptr=0xa2709c000),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid=0x40000, rid_tag=21, gpu_va2=0x104f64d80, slot_index=18, heap_size=0x20000, cookie=0x6f100502, type_tag=0x8fa14, out_heap_flags=0x20000),
     ),
@@ -1050,14 +1065,14 @@ OPS = [
 
     CallOp(  # op 22: SHMEM
         selector=sel.SHMEM,
-        scalars=ShmemIn(size=16384).as_scalars(),
+        scalars=ShmemIn().as_scalars(),
         struct_in=None,
         struct_out_sz=16,
         cap_out=ShmemOut(gpu_va=0x104ffc000, size=16384, shmem_id=1),
     ),
     CallOp(  # op 23: SHMEM
         selector=sel.SHMEM,
-        scalars=ShmemIn(size=16384, map_flags=1).as_scalars(),
+        scalars=ShmemIn(map_flags=1).as_scalars(),
         struct_in=None,
         struct_out_sz=16,
         cap_out=ShmemOut(gpu_va=0x105000000, size=16384, shmem_id=2),
@@ -1067,49 +1082,49 @@ OPS = [
     CallOp(  # op 24: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(type_version=0x18000, create_flags=0x1000101, alloc_size=17456, heap_flags=32768, stride_or_count=0x8000000, create_info=72),
+        struct_in=ResourceCreateIn(type_version=0x18000, alloc_size=17456, heap_flags=32768, stride_or_count=0x8000000, create_info=72),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid=0x68000, rid_tag=21, gpu_va=0x105004000, gpu_va2=0x104f64e40, slot_index=19, heap_size=32768, cookie=0x70100503, type_tag=0x8fa15, out_heap_flags=32768),
     ),
     CallOp(  # op 25: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(type_version=0x18000, create_flags=0x1000101, alloc_size=50224, heap_flags=32768, stride_or_count=0x48000000),
+        struct_in=ResourceCreateIn(type_version=0x18000, alloc_size=50224, heap_flags=32768, stride_or_count=0x48000000),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid=0x18000, gpu_va=0x10500c000, gpu_va2=0x104f64f00, slot_index=20, heap_size=32768, cookie=0x70100504, type_tag=0x8fa16, out_heap_flags=32768),
     ),
     CallOp(  # op 26: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(type_version=0x18000, create_flags=0x1000101, alloc_size=17456, heap_flags=32768, stride_or_count=0x8000000),
+        struct_in=ResourceCreateIn(type_version=0x18000, alloc_size=17456, heap_flags=32768, stride_or_count=0x8000000),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid=0x78000, rid_tag=21, gpu_va=0x105014000, gpu_va2=0x104f64fc0, slot_index=21, heap_size=32768, cookie=0x70100505, type_tag=0x8fa17, out_heap_flags=32768),
     ),
     CallOp(  # op 27: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(type_version=0x18000, create_flags=0x1000101, alloc_size=17456, heap_flags=32768, stride_or_count=0x8000000, create_info=64),
+        struct_in=ResourceCreateIn(type_version=0x18000, alloc_size=17456, heap_flags=32768, stride_or_count=0x8000000, create_info=64),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid=0x88000, rid_tag=21, gpu_va=0x10501c000, gpu_va2=0x104f65080, slot_index=22, heap_size=32768, cookie=0x70100506, type_tag=0x8fa18, out_heap_flags=32768),
     ),
     CallOp(  # op 28: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(type_version=0x18000, create_flags=0x1000101, alloc_size=17456, heap_flags=32768, stride_or_count=0x8000000),
+        struct_in=ResourceCreateIn(type_version=0x18000, alloc_size=17456, heap_flags=32768, stride_or_count=0x8000000),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid=0x98000, rid_tag=21, gpu_va=0x105024000, gpu_va2=0x104f65140, slot_index=23, heap_size=32768, cookie=0x70100507, type_tag=0x8fa19, out_heap_flags=32768),
     ),
     CallOp(  # op 29: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(type_version=0x18000, create_flags=0x1000101, alloc_size=17456, heap_flags=32768, stride_or_count=0x8000000),
+        struct_in=ResourceCreateIn(type_version=0x18000, alloc_size=17456, heap_flags=32768, stride_or_count=0x8000000),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid=0xa8000, rid_tag=21, gpu_va=0x10502c000, gpu_va2=0x104f65200, slot_index=24, heap_size=32768, cookie=0x70100508, type_tag=0x8fa1a, out_heap_flags=32768),
     ),
     CallOp(  # op 30: NEW_RESOURCE
         selector=sel.NEW_RESOURCE,
         scalars=[],
-        struct_in=ResourceCreateIn(type_version=0x1ff80, create_flags=0x1000101, alloc_size=17456, heap_flags=65408, stride_or_count=0x18000000),
+        struct_in=ResourceCreateIn(type_version=0x1ff80, alloc_size=17456, heap_flags=65408, stride_or_count=0x18000000),
         struct_out_sz=88,
         cap_out=ResourceCreateOut(rid=0xb8000, rid_tag=21, gpu_va=0x105034000, gpu_va2=0x104f652c0, slot_index=25, heap_size=0x10000, cookie=0x70100509, type_tag=0x8fa1b, out_heap_flags=0x10000),
     ),
@@ -1243,7 +1258,8 @@ def execute_op(
     event = trace_event()
     if isinstance(op, CallOp):
         raw = op.pack_struct_in()
-        buf = bytearray(raw) if raw else bytearray()
+        prepared = prepare_call_struct(op.selector, raw)
+        buf = bytearray(prepared) if prepared else bytearray()
         patched = addr_map.patch_u64_buf(buf) if buf else []
         name = SELECTOR_NAMES.get(op.selector, f"SEL_0x{op.selector:02x}")
         input_summary = describe_call_input(op.selector, op.scalars, op.struct_in)
@@ -1254,6 +1270,11 @@ def execute_op(
             event=event,
         )
         trace("ARGS", describe_struct(op.struct_in), event=event, level=2)
+        if prepared != raw:
+            trace(
+                "PATCH", "macOS 27 QUEUE_CREATE tail: (0xffffffff, 1) -> (1, 0)",
+                event=event,
+            )
         if patched:
             details = ", ".join(
                 f"+0x{off:x} 0x{old:x}->0x{new:x}"

@@ -220,6 +220,17 @@ static int replay_call(io_connect_t conn, FILE *fp, int idx)
 
 	patch_u64_buf(struct_in, hdr.struct_in_sz);
 
+	/* Fresh macOS 27 captures use (1, 0) in the queue's final two words. */
+	const uint8_t legacy_queue_tail[] = { 0xff, 0xff, 0xff, 0xff, 1, 0, 0, 0 };
+	if (hdr.selector == 0x07 && hdr.struct_in_sz == 0x410 &&
+		memcmp(struct_in + 0x408, legacy_queue_tail, sizeof(legacy_queue_tail)) == 0) {
+		if (__builtin_available(macOS 27.0, *)) {
+			const uint8_t queue_tail[] = { 1, 0, 0, 0, 0, 0, 0, 0 };
+			memcpy(struct_in + 0x408, queue_tail, sizeof(queue_tail));
+			printf("[%d] macOS 27 queue tail: (0xffffffff, 1) -> (1, 0)\n", idx);
+		}
+	}
+
 	uint64_t scal_out[MAX_SCALARS] = {0};
 	uint32_t scal_out_cnt = tail.scalar_out_cnt;
 	uint8_t live_out[MAX_STRUCT] = {0};

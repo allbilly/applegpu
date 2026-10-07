@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.util
+import platform
 
 AGX_NAMES = (
     "AGXAcceleratorG13G_B0",
@@ -13,6 +14,19 @@ AGX_NAMES = (
     "AGXAcceleratorG16G",
     "AGXAcceleratorG17G",
 )
+
+
+def prepare_call_struct(selector: int, struct_in: bytes | None) -> bytes | None:
+    """Translate the legacy queue tail to the layout captured on macOS 27."""
+    if (
+        selector == 0x07
+        and struct_in is not None
+        and len(struct_in) == 0x410
+        and struct_in[0x408:] == b"\xff\xff\xff\xff\x01\x00\x00\x00"
+        and int(platform.mac_ver()[0].split(".")[0] or "0") >= 27
+    ):
+        return struct_in[:0x408] + b"\x01\x00\x00\x00\x00\x00\x00\x00"
+    return struct_in
 
 
 class IOKit:
@@ -100,6 +114,7 @@ class IOKit:
         scalar_out_cnt: int,
         struct_out_sz: int,
     ) -> tuple[int, list[int], bytes, int]:
+        struct_in = prepare_call_struct(selector, struct_in)
         n_in = len(scal_in)
         scal_in_arr = (ctypes.c_uint64 * n_in)(*scal_in) if n_in else None
 

@@ -37,6 +37,11 @@ the script range-remaps live GPU VAs, restores the captured memory, submits the
 work without Metal, waits for the CPU-visible output, and reports `PASS` only
 when both the GPU result and every IOKit return value/size match.
 
+On macOS 27, replay adapts the legacy `QUEUE_CREATE` input's final two words
+at offsets `0x408` and `0x40c` from `(0xffffffff, 1)` to `(1, 0)`, matching
+fresh Metal captures. Older macOS versions receive the original captured input.
+The generator preserves explicit zero values in new captures.
+
 To recapture and regenerate an example:
 
 ```bash
@@ -44,6 +49,12 @@ cd experimental
 make capture standalone          # add
 make capture-mul standalone-mul  # multiply
 make capture-tri standalone-tri  # triangle
+```
+
+Run the capture and compatibility regression checks without submitting GPU work:
+
+```bash
+python3 -m unittest discover -s experimental/tests -v
 ```
 
 ## Asahi Linux
@@ -174,6 +185,14 @@ M1 MacBook Air
 ProductName:		macOS
 ProductVersion:		26.6.2
 BuildVersion:		25G83
+```
+
+M1 MacBook Air (ADD, MUL, TRI; standalone, Python replay and C replay)
+
+```
+ProductName:		macOS
+ProductVersion:		27.0.1
+BuildVersion:		26A434
 ```
 
 M4 MacBook Air
